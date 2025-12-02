@@ -30,8 +30,8 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
       { adminId: admin.id, email: admin.email, role: admin.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: '24h' }
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
     res.json({
@@ -50,7 +50,7 @@ router.post('/login', async (req, res) => {
 router.post('/polls', authenticateAdmin, async (req, res) => {
   try {
     const { officeName, description, startDate, endDate, candidates } = req.body;
-    const adminId = (req as any).admin.adminId;
+    const adminId = req.admin.adminId;
 
     const client = await db.getClient();
     

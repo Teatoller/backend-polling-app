@@ -1,6 +1,5 @@
 // backend/routes/polls.ts
 import express from 'express';
-// import { query, getClient } from '../config/database.js';
 import { db } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -40,7 +39,7 @@ router.post('/vote', authenticateToken, async (req, res) => {
   
   try {
     await client.query('BEGIN');
-    const userId = (req as any).user.userId;
+    const userId = req.user.userId;
     const { pollId, candidateId } = req.body;
 
     // Check if user has already voted in this poll
@@ -77,7 +76,7 @@ router.post('/vote', authenticateToken, async (req, res) => {
     await client.query('COMMIT');
 
     // Emit real-time update via Socket.io
-    (req as any).app.get('io').emit('voteUpdate', { pollId, candidateId });
+    req.app.get('io').emit('voteUpdate', { pollId, candidateId });
 
     res.json({ message: 'Vote submitted successfully' });
 
@@ -93,7 +92,7 @@ router.post('/vote', authenticateToken, async (req, res) => {
 // Check if user has voted
 router.get('/has-voted/:pollId', authenticateToken, async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = req.user.userId;
     const { pollId } = req.params;
 
     const result = await db.query(

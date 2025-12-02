@@ -1,7 +1,8 @@
-// src/migrations/migrate.ts
+// src/migrations/migrate.js
 import { db } from '../config/database.js';
+import bcrypt from 'bcryptjs';
 
-const createTables = async (): Promise<void> => {
+const createTables = async () => {
   try {
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -74,7 +75,6 @@ const createTables = async (): Promise<void> => {
     console.log('Tables created successfully');
     
     // Create default admin user
-    const bcrypt = await import('bcryptjs');
     const adminPassword = await bcrypt.hash('admin123', 12);
     
     await db.query(
@@ -95,4 +95,7 @@ const createTables = async (): Promise<void> => {
 createTables().then(() => {
   console.log('Migration completed');
   process.exit(0);
+}).catch((error) => {
+  console.error('Migration failed:', error);
+  process.exit(1);
 });
