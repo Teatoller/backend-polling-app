@@ -123,7 +123,7 @@ npm run migrate
 
 This will create all necessary tables and a default admin user:
 - **Email**: `admin@pollingapp.com`
-- **Password**: `admin123`
+- **Password**: `newadmin@123`
 
 ## Running the Application
 
