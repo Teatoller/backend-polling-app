@@ -248,6 +248,184 @@ router.patch('/polls/:id/toggle', authenticateAdmin, async (req, res) => {
   }
 });
 
+// Add this NEW endpoint before the existing /polls/:id/results endpoint
+// Get single poll with candidates for editing
+router.get('/polls/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get poll details
+    const pollResult = await db.query(
+      `SELECT 
+        p.id,
+        p.office_name,
+        p.description,
+        p.start_date,
+        p.end_date,
+        p.is_active,
+        p.created_at,
+        COUNT(DISTINCT v.id) as total_votes
+       FROM polls p
+       LEFT JOIN votes v ON p.id = v.poll_id
+       WHERE p.id = $1
+       GROUP BY p.id`,
+      [id]
+    );
+
+    if (pollResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Poll not found' });
+    }
+
+    // Get candidates for this poll
+    const candidatesResult = await db.query(
+      `SELECT 
+        id,
+        name,
+        party,
+        photo_url,
+        description
+       FROM candidates
+       WHERE poll_id = $1
+       ORDER BY id`,
+      [id]
+    );
+
+    const poll = pollResult.rows[0];
+    
+    res.json({
+      id: poll.id,
+      officeName: poll.office_name,
+      description: poll.description,
+      startDate: poll.start_date,
+      endDate: poll.end_date,
+      is_active: poll.is_active,
+      totalVotes: parseInt(poll.total_votes) || 0,
+      candidates: candidatesResult.rows.map(c => ({
+        id: c.id,
+        name: c.name,
+        party: c.party,
+        photoUrl: c.photo_url,
+        description: c.description
+      })),
+      createdAt: poll.created_at
+    });
+
+  } catch (error) {
+    console.error('Error fetching poll:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update the existing PUT /polls/:id endpoint to handle candidate updates
+router.put('/polls/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { officeName, description, startDate, endDate, is_active, candidates } = req.body;
+
+    console.log('Updating poll:', id);
+    console.log('Received data:', { officeName, description, startDate, endDate, is_active, candidatesCount: candidates?.length });
+
+    const client = await db.getClient();
+
+    try {
+      await client.query('BEGIN');
+
+      // Update poll details
+      const pollResult = await client.query(
+        `UPDATE polls 
+         SET office_name = COALESCE($1, office_name),
+             description = COALESCE($2, description),
+             start_date = COALESCE($3, start_date),
+             end_date = COALESCE($4, end_date),
+             is_active = COALESCE($5, is_active),
+             updated_at = NOW()
+         WHERE id = $6
+         RETURNING *`,
+        [officeName, description, startDate, endDate, is_active, id]
+      );
+
+      if (pollResult.rows.length === 0) {
+        throw new Error('Poll not found');
+      }
+
+      // Handle candidates if provided
+      if (candidates && Array.isArray(candidates)) {
+        // Get existing candidates
+        const existingCandidates = await client.query(
+          'SELECT id FROM candidates WHERE poll_id = $1',
+          [id]
+        );
+        const existingIds = existingCandidates.rows.map(c => c.id);
+        const incomingIds = candidates.filter(c => c.id).map(c => c.id);
+
+        // Delete candidates that are no longer in the list
+        const toDelete = existingIds.filter(id => !incomingIds.includes(id));
+        if (toDelete.length > 0) {
+          await client.query(
+            'DELETE FROM candidates WHERE id = ANY($1) AND poll_id = $2',
+            [toDelete, id]
+          );
+        }
+
+        // Update or insert candidates
+        for (const candidate of candidates) {
+          if (candidate.id) {
+            // Update existing candidate
+            await client.query(
+              `UPDATE candidates 
+               SET name = $1, 
+                   party = $2, 
+                   photo_url = $3, 
+                   description = $4
+               WHERE id = $5 AND poll_id = $6`,
+              [
+                candidate.name,
+                candidate.party,
+                candidate.photoUrl || null,
+                candidate.description || null,
+                candidate.id,
+                id
+              ]
+            );
+          } else {
+            // Insert new candidate
+            await client.query(
+              `INSERT INTO candidates (poll_id, name, party, photo_url, description)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [
+                id,
+                candidate.name,
+                candidate.party,
+                candidate.photoUrl || null,
+                candidate.description || null
+              ]
+            );
+          }
+        }
+      }
+
+      await client.query('COMMIT');
+
+      console.log('Poll updated successfully:', id);
+
+      res.json({
+        message: 'Poll updated successfully',
+        pollId: id
+      });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (error) {
+    console.error('Error updating poll:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
 // ========== NEW ENHANCED ENDPOINTS ==========
 
 // Get poll results details
@@ -714,37 +892,37 @@ router.get('/export/:type', authenticateAdmin, async (req, res) => {
 });
 
 // Update poll details
-router.put('/polls/:id', authenticateAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { officeName, description, startDate, endDate, is_active } = req.body;
+// router.put('/polls/:id', authenticateAdmin, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { officeName, description, startDate, endDate, is_active } = req.body;
 
-    const result = await db.query(
-      `UPDATE polls 
-       SET office_name = COALESCE($1, office_name),
-           description = COALESCE($2, description),
-           start_date = COALESCE($3, start_date),
-           end_date = COALESCE($4, end_date),
-           is_active = COALESCE($5, is_active),
-           updated_at = NOW()
-       WHERE id = $6
-       RETURNING *`,
-      [officeName, description, startDate, endDate, is_active, id]
-    );
+//     const result = await db.query(
+//       `UPDATE polls 
+//        SET office_name = COALESCE($1, office_name),
+//            description = COALESCE($2, description),
+//            start_date = COALESCE($3, start_date),
+//            end_date = COALESCE($4, end_date),
+//            is_active = COALESCE($5, is_active),
+//            updated_at = NOW()
+//        WHERE id = $6
+//        RETURNING *`,
+//       [officeName, description, startDate, endDate, is_active, id]
+//     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Poll not found' });
-    }
+//     if (result.rows.length === 0) {
+//       return res.status(404).json({ error: 'Poll not found' });
+//     }
 
-    res.json({
-      message: 'Poll updated successfully',
-      poll: result.rows[0]
-    });
+//     res.json({
+//       message: 'Poll updated successfully',
+//       poll: result.rows[0]
+//     });
 
-  } catch (error) {
-    console.error('Error updating poll:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+//   } catch (error) {
+//     console.error('Error updating poll:', error);
+//     res.status(500).json({ error: 'Internal server error' });
+//   }
+// });
 
 export default router;
