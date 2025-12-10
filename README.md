@@ -182,26 +182,26 @@ npm start
 ```
 src/
 ├── config/
-│   ├── database.ts      # Database configuration and pool
-│   └── environment.ts   # Environment variables
+│   ├── database.js      # Database configuration and pool
+│   └── environment.js   # Environment variables
 ├── middleware/
-│   ├── auth.ts          # JWT authentication
-│   └── validation.ts    # Request validation
+│   ├── auth.js          # JWT authentication
+│   └── validation.js    # Request validation
 ├── migrations/
-│   └── migrate.ts       # Database migrations
+│   └── migrate.js       # Database migrations
 ├── routes/
-│   ├── admin.ts         # Admin routes
-│   ├── auth.ts          # Authentication routes
-│   ├── polls.ts         # Poll routes
-│   └── results.ts       # Results routes
+│   ├── admin.js         # Admin routes
+│   ├── auth.js          # Authentication routes
+│   ├── polls.js         # Poll routes
+│   └── results.js       # Results routes
 ├── services/
-│   ├── emailService.ts  # Email functionality
-│   ├── smsService.ts    # SMS functionality
-│   └── socketService.ts # WebSocket functionality
+│   ├── emailService.js  # Email functionality
+│   ├── smsService.js    # SMS functionality
+│   └── socketService.js # WebSocket functionality
 ├── types/
-│   ├── index.ts         # TypeScript interfaces
-│   └── twilio.ts        # Twilio types
-└── server.ts            # Main server file
+│   ├── index.js         # TypeScript interfaces
+│   └── twilio.js        # Twilio types
+└── server.js            # Main server file
 ```
 
 ## License
