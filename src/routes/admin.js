@@ -135,7 +135,23 @@ router.get('/polls', authenticateAdmin, async (req, res) => {
          GROUP BY p.id
          ORDER BY p.created_at DESC`
       );
-      res.json(result.rows);
+      
+      // Format response to camelCase
+      const formattedPolls = result.rows.map(poll => ({
+        id: poll.id,
+        officeName: poll.office_name,
+        description: poll.description,
+        startDate: poll.start_date,
+        endDate: poll.end_date,
+        is_active: poll.is_active,
+        createdBy: poll.created_by,
+        createdAt: poll.created_at,
+        updatedAt: poll.updated_at,
+        candidateCount: poll.candidate_count,
+        totalVotes: poll.total_votes
+      }));
+      
+      res.json(formattedPolls);
     }
   } catch (error) {
     console.error('Error fetching polls:', error);
