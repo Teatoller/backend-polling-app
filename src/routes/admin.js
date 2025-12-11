@@ -745,14 +745,30 @@ router.patch('/users/:id/deactivate', authenticateAdmin, async (req, res) => {
 // Get analytics data (NEW)
 router.get('/analytics', authenticateAdmin, async (req, res) => {
   try {
-    const { range = '7d' } = req.query;
+    const { range = '7d', pollId } = req.query;
     let dateFilter = '';
+    let whereClauseFilter = '';
 
     switch (range) {
-      case '7d': dateFilter = "AND created_at >= NOW() - INTERVAL '7 days'"; break;
-      case '30d': dateFilter = "AND created_at >= NOW() - INTERVAL '30 days'"; break;
-      case '90d': dateFilter = "AND created_at >= NOW() - INTERVAL '90 days'"; break;
-      case '1y': dateFilter = "AND created_at >= NOW() - INTERVAL '1 year'"; break;
+      case '7d': 
+        dateFilter = "AND created_at >= NOW() - INTERVAL '7 days'"; 
+        whereClauseFilter = "WHERE created_at >= NOW() - INTERVAL '7 days'";
+        break;
+      case '30d': 
+        dateFilter = "AND created_at >= NOW() - INTERVAL '30 days'"; 
+        whereClauseFilter = "WHERE created_at >= NOW() - INTERVAL '30 days'";
+        break;
+      case '90d': 
+        dateFilter = "AND created_at >= NOW() - INTERVAL '90 days'"; 
+        whereClauseFilter = "WHERE created_at >= NOW() - INTERVAL '90 days'";
+        break;
+      case '1y': 
+        dateFilter = "AND created_at >= NOW() - INTERVAL '1 year'"; 
+        whereClauseFilter = "WHERE created_at >= NOW() - INTERVAL '1 year'";
+        break;
+      default:
+        dateFilter = '';
+        whereClauseFilter = '';
     }
 
     // Daily votes
@@ -799,8 +815,8 @@ router.get('/analytics', authenticateAdmin, async (req, res) => {
       SELECT 
         (SELECT COUNT(*) FROM users WHERE is_email_verified = true) as total_verified_users,
         (SELECT COUNT(*) FROM polls WHERE is_active = true) as active_polls,
-        (SELECT COUNT(*) FROM votes ${dateFilter ? 'WHERE created_at >= NOW() - INTERVAL ' + range : ''}) as recent_votes,
-        (SELECT COUNT(DISTINCT user_id) FROM votes ${dateFilter ? 'WHERE created_at >= NOW() - INTERVAL ' + range : ''}) as recent_voters
+        (SELECT COUNT(*) FROM votes ${whereClauseFilter}) as recent_votes,
+        (SELECT COUNT(DISTINCT user_id) FROM votes ${whereClauseFilter}) as recent_voters
     `);
 
     res.json({
