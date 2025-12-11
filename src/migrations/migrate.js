@@ -64,6 +64,14 @@ const createTables = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS system_settings (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT single_row_check CHECK (id = 1)
+      );
+
       -- Create indexes for better performance
       CREATE INDEX IF NOT EXISTS idx_users_national_id ON users(national_id);
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);

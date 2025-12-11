@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import pollRoutes from './routes/polls.js';
 import adminRoutes from './routes/admin.js';
 import resultsRoutes from './routes/results.js';
+import settingsRoutes from './routes/settings.js';
 
 import { authenticateToken } from './middleware/auth.js';
 import { initializeSocket, socketAuthMiddleware } from './services/socketService.js';
@@ -72,6 +73,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/polls', authenticateToken, pollRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/results', resultsRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
