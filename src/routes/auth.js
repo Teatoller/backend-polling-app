@@ -12,7 +12,7 @@ const router = express.Router();
 // Register endpoint
 router.post('/register', validateRegistration, async (req, res) => {
   try {
-    const { nationalId, email, phone, password, county, division, pollingStation } = req.body;
+    const { nationalId, email, phone, password, confirmPassword, county, division, pollingStation } = req.body;
 
     // Check if user already exists
     const existingUser = await db.query(
@@ -49,13 +49,25 @@ router.post('/register', validateRegistration, async (req, res) => {
 
     const user = result.rows[0];
 
-    // Send verification emails and SMS
-    await sendVerificationEmail(email, emailVerificationToken);
+    // Send verification emails and SMS (non-blocking in development)
+    try {
+      await sendVerificationEmail(email, emailVerificationToken);
+      console.log('Verification email sent successfully');
+    } catch (emailError) {
+      console.error('Email sending failed (non-blocking):', emailError.message);
+      // Continue with registration even if email fails
+    }
     
     // Send SMS verification if phone is provided
     if (phone) {
-      const smsService = getSMSService();
-      await smsService.sendVerificationSMS(phone, phoneVerificationCode);
+      try {
+        const smsService = getSMSService();
+        await smsService.sendVerificationSMS(phone, phoneVerificationCode);
+        console.log('SMS verification sent successfully');
+      } catch (smsError) {
+        console.error('SMS sending failed (non-blocking):', smsError.message);
+        // Continue with registration even if SMS fails
+      }
     }
 
     // Generate JWT token

@@ -4,13 +4,28 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// Create transporter based on environment
+const createTransporter = () => {
+  if (process.env.EMAIL_SERVICE === 'mock') {
+    // Mock transporter for development
+    return nodemailer.createTransport({
+      streamTransport: true,
+      newline: 'unix',
+      buffer: true
+    });
+  }
+  
+  // Real email service
+  return nodemailer.createTransport({
+    service: process.env.EMAIL_SERVICE,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+};
+
+const transporter = createTransporter();
 
 export const generateEmailToken = () => {
   return Math.random().toString(36).substring(2, 15) + 
@@ -43,8 +58,15 @@ export const sendVerificationEmail = async (email, token) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Verification email sent to ${email}`);
+    const info = await transporter.sendMail(mailOptions);
+    
+    if (process.env.EMAIL_SERVICE === 'mock') {
+      console.log('📧 [MOCK EMAIL] Verification email would be sent to:', email);
+      console.log('📧 [MOCK EMAIL] Verification link:', verificationUrl);
+      console.log('📧 [MOCK EMAIL] Token:', token);
+    } else {
+      console.log(`Verification email sent to ${email}`);
+    }
   } catch (error) {
     console.error('Error sending verification email:', error);
     throw new Error('Failed to send verification email');
