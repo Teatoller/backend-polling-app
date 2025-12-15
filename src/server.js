@@ -1,5 +1,5 @@
-// src/server.ts
-import express, { Express, Request, Response, NextFunction } from 'express';
+// src/server.js
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -11,14 +11,14 @@ import authRoutes from './routes/auth.js';
 import pollRoutes from './routes/polls.js';
 import adminRoutes from './routes/admin.js';
 import resultsRoutes from './routes/results.js';
-import { authenticateToken, authenticateAdmin } from './middleware/auth.js';
-import { ApiResponse } from './types/index.js';
+import settingsRoutes from './routes/settings.js';
+
+import { authenticateToken } from './middleware/auth.js';
 import { initializeSocket, socketAuthMiddleware } from './services/socketService.js';
-// import { authenticateToken } from './middleware/auth.js';
 
 dotenv.config();
 
-const app: Express = express();
+const app = express();
 const httpServer = createServer(app);
 
 // Socket.io configuration with CORS
@@ -60,9 +60,9 @@ app.set('io', io);
 app.use('/api/auth', apiLimiter);
 
 // Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((err, req, res, next) => {
   console.error('Error:', err);
-  const response: ApiResponse = {
+  const response = {
     error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
   };
   res.status(500).json(response);
@@ -73,10 +73,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/polls', authenticateToken, pollRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/results', resultsRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Health check
-app.get('/api/health', (req: Request, res: Response) => {
-  const response: ApiResponse = {
+app.get('/api/health', (req, res) => {
+  const response = {
     message: 'Server is running',
     data: {
       timestamp: new Date().toISOString(),
@@ -89,17 +90,17 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // Database health check
-app.get('/api/health/db', async (req: Request, res: Response) => {
+app.get('/api/health/db', async (req, res) => {
   try {
     const { db } = await import('./config/database.js');
     await db.query('SELECT 1');
-    const response: ApiResponse = {
+    const response = {
       message: 'Database connection is healthy'
     };
     res.json(response);
   } catch (error) {
     console.error('Database health check failed:', error);
-    const response: ApiResponse = {
+    const response = {
       error: 'Database connection failed'
     };
     res.status(503).json(response);
@@ -107,9 +108,12 @@ app.get('/api/health/db', async (req: Request, res: Response) => {
 });
 
 // 404 handler
-app.use('*', (req: Request, res: Response) => {
-  const response: ApiResponse = {
-    error: 'Route not found'
+app.use((req, res) => {
+  const response = {
+    error: 'Route not found',
+    path: req.path,
+    method: req.method,
+    timestamp: new Date().toISOString()
   };
   res.status(404).json(response);
 });
@@ -119,7 +123,7 @@ io.use(socketAuthMiddleware);
 initializeSocket(io);
 
 // Graceful shutdown handling
-const gracefulShutdown = (signal: string) => {
+const gracefulShutdown = (signal) => {
   console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
   
   httpServer.close((err) => {
@@ -151,18 +155,18 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Handle uncaught exceptions
-process.on('uncaughtException', (error: Error) => {
+process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
 });
 
-const PORT: number = parseInt(process.env.PORT || '5000');
-const HOST: string = process.env.HOST || '0.0.0.0';
+const PORT = parseInt(process.env.PORT || '5000');
+const HOST = process.env.HOST || '0.0.0.0';
 
 httpServer.listen(PORT, HOST, () => {
   console.log(`

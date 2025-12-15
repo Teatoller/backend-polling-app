@@ -1,19 +1,11 @@
-// backend/services/smsService.ts
+// backend/services/smsService.js
 import twilio from 'twilio';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Common interface for SMS services
-interface SMSService {
-  sendVerificationSMS(phone: string, code: string): Promise<void>;
-  sendLoginNotificationSMS(phone: string): Promise<void>;
-}
-
 // Real Twilio SMS service
-class TwilioSMSService implements SMSService {
-  private client: twilio.Twilio;
-
+class TwilioSMSService {
   constructor() {
     if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
       throw new Error('Twilio credentials not configured');
@@ -25,7 +17,7 @@ class TwilioSMSService implements SMSService {
     );
   }
 
-  async sendVerificationSMS(phone: string, code: string): Promise<void> {
+  async sendVerificationSMS(phone, code) {
     try {
       if (!process.env.TWILIO_PHONE_NUMBER) {
         throw new Error('Twilio phone number not configured');
@@ -42,23 +34,21 @@ class TwilioSMSService implements SMSService {
       console.error('Error sending SMS:', error);
       
       // Provide more specific error messages based on Twilio error codes
-      if (error instanceof Error) {
-        if ('code' in error && error.code === 21211) {
-          throw new Error('Invalid phone number format');
-        } else if ('code' in error && error.code === 21408) {
-          throw new Error('Twilio account not authorized to send to this region');
-        } else if ('code' in error && error.code === 21610) {
-          throw new Error('Phone number is blacklisted');
-        } else if ('code' in error && error.code === 20003) {
-          throw new Error('Twilio authentication failed - check your credentials');
-        }
+      if (error.code === 21211) {
+        throw new Error('Invalid phone number format');
+      } else if (error.code === 21408) {
+        throw new Error('Twilio account not authorized to send to this region');
+      } else if (error.code === 21610) {
+        throw new Error('Phone number is blacklisted');
+      } else if (error.code === 20003) {
+        throw new Error('Twilio authentication failed - check your credentials');
       }
       
       throw new Error('Failed to send verification SMS');
     }
   }
 
-  async sendLoginNotificationSMS(phone: string): Promise<void> {
+  async sendLoginNotificationSMS(phone) {
     try {
       if (!process.env.TWILIO_PHONE_NUMBER) {
         console.warn('Twilio phone number not configured - skipping login notification');
@@ -80,25 +70,25 @@ class TwilioSMSService implements SMSService {
 }
 
 // Mock SMS service for development
-class MockSMSService implements SMSService {
-  async sendVerificationSMS(phone: string, code: string): Promise<void> {
+class MockSMSService {
+  async sendVerificationSMS(phone, code) {
     console.log(`📱 [MOCK SMS] Verification code for ${phone}: ${code}`);
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 
-  async sendLoginNotificationSMS(phone: string): Promise<void> {
+  async sendLoginNotificationSMS(phone) {
     console.log(`📱 [MOCK SMS] Login notification sent to ${phone}`);
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 }
 
-export const generateSMSCode = (): string => {
+export const generateSMSCode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 // Factory function to get the appropriate SMS service
-export const getSMSService = (): SMSService => {
+export const getSMSService = () => {
   const hasTwilioConfig = process.env.TWILIO_ACCOUNT_SID && 
                           process.env.TWILIO_AUTH_TOKEN && 
                           process.env.TWILIO_PHONE_NUMBER;
@@ -108,7 +98,7 @@ export const getSMSService = (): SMSService => {
       console.log('📱 Using Twilio SMS service');
       return new TwilioSMSService();
     } catch (error) {
-      console.warn('Failed to initialize Twilio, falling back to mock service:', error);
+      console.warn('Failed to initialize Twilio, falling back to mock service:', error.message);
       return new MockSMSService();
     }
   } else {
@@ -118,12 +108,12 @@ export const getSMSService = (): SMSService => {
 };
 
 // Direct function exports for backward compatibility
-export const sendVerificationSMS = async (phone: string, code: string): Promise<void> => {
+export const sendVerificationSMS = async (phone, code) => {
   const smsService = getSMSService();
   await smsService.sendVerificationSMS(phone, code);
 };
 
-export const sendLoginNotificationSMS = async (phone: string): Promise<void> => {
+export const sendLoginNotificationSMS = async (phone) => {
   const smsService = getSMSService();
   await smsService.sendLoginNotificationSMS(phone);
 };

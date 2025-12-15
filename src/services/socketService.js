@@ -1,31 +1,25 @@
-// src/services/socketService.ts
+// src/services/socketService.js
 import { Server, Socket } from 'socket.io';
 
-export interface SocketEvents {
-  'joinPoll': (pollId: number) => void;
-  'leavePoll': (pollId: number) => void;
-  'voteUpdate': (data: { pollId: number; candidateId: number }) => void;
-}
-
-export const initializeSocket = (io: Server): Server => {
-  io.on('connection', (socket: Socket) => {
+export const initializeSocket = (io) => {
+  io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    socket.on('joinPoll', (pollId: number) => {
+    socket.on('joinPoll', (pollId) => {
       socket.join(`poll-${pollId}`);
       console.log(`User ${socket.id} joined poll ${pollId}`);
     });
 
-    socket.on('leavePoll', (pollId: number) => {
+    socket.on('leavePoll', (pollId) => {
       socket.leave(`poll-${pollId}`);
       console.log(`User ${socket.id} left poll ${pollId}`);
     });
 
-    socket.on('disconnect', (reason: string) => {
+    socket.on('disconnect', (reason) => {
       console.log('User disconnected:', socket.id, 'Reason:', reason);
     });
 
-    socket.on('error', (error: Error) => {
+    socket.on('error', (error) => {
       console.error('Socket error:', error);
     });
   });
@@ -34,7 +28,7 @@ export const initializeSocket = (io: Server): Server => {
 };
 
 // Utility function to emit vote updates to specific poll room
-export const emitVoteUpdate = (io: Server, pollId: number, candidateId: number): void => {
+export const emitVoteUpdate = (io, pollId, candidateId) => {
   io.to(`poll-${pollId}`).emit('voteUpdate', {
     pollId,
     candidateId,
@@ -43,13 +37,13 @@ export const emitVoteUpdate = (io: Server, pollId: number, candidateId: number):
 };
 
 // Utility function to get connected clients in a poll room
-export const getPollRoomClients = (io: Server, pollId: number): number => {
+export const getPollRoomClients = (io, pollId) => {
   const room = io.sockets.adapter.rooms.get(`poll-${pollId}`);
   return room ? room.size : 0;
 };
 
 // Middleware for socket authentication (optional)
-export const socketAuthMiddleware = (socket: Socket, next: (err?: Error) => void): void => {
+export const socketAuthMiddleware = (socket, next) => {
   // You can add authentication logic here
   // For example, verify JWT token from socket.handshake.auth
   const token = socket.handshake.auth.token;

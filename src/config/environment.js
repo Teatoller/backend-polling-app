@@ -1,4 +1,4 @@
-// src/config/environment.ts
+// src/config/environment.js
 export const environment = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '5000'),
@@ -10,7 +10,7 @@ export const environment = {
     password: process.env.DB_PASSWORD || 'password'
   },
   jwt: {
-    secret: process.env.JWT_SECRET!,
+    secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN || '7d'
   },
   email: {
@@ -34,8 +34,7 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-// Add to src/config/environment.ts
-export const validateTwilioConfig = (): boolean => {
+export const validateTwilioConfig = () => {
   const required = [
     'TWILIO_ACCOUNT_SID',
     'TWILIO_AUTH_TOKEN', 
@@ -52,3 +51,23 @@ export const validateTwilioConfig = (): boolean => {
   
   return true;
 };
+
+export const validateEmailConfig = () => {
+  const required = [
+    'EMAIL_SERVICE',
+    'EMAIL_USER',
+    'EMAIL_PASS'
+  ];
+  
+  const missing = required.filter(envVar => !process.env[envVar]);
+  
+  if (missing.length > 0) {
+    console.warn(`Missing Email configuration: ${missing.join(', ')}`);
+    console.warn('Email services will use mock implementation');
+    return false;
+  }
+  
+  return true;
+};
+
+export const getConfig = () => environment;
