@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "src/server.js",
   "type": "module",
+  "engines": {
+    "node": "23.10.0"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
@@ -26,6 +29,7 @@
     "twilio": "^5.10.6"
   },
   "devDependencies": {
+    "@types/node": "^25.0.2",
     "@types/nodemailer": "^7.0.4",
     "nodemon": "^3.1.11"
   }

@@ -43,22 +43,36 @@ export const getPollRoomClients = (io, pollId) => {
 };
 
 // Middleware for socket authentication (optional)
+// export const socketAuthMiddleware = (socket, next) => {
+//   // You can add authentication logic here
+//   // For example, verify JWT token from socket.handshake.auth
+//   const token = socket.handshake.auth.token;
+
+//   if (!token) {
+//     next(new Error('Authentication error: No token provided'));
+//     return;
+//   }
+
+//   // Add your JWT verification logic here
+//   try {
+//     // const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+//     // socket.data.user = decoded;
+//     next();
+//   } catch (error) {
+//     next(new Error('Authentication error: Invalid token'));
+//   }
+// };
+// In src/services/socketService.js - FIX THIS
 export const socketAuthMiddleware = (socket, next) => {
-  // You can add authentication logic here
-  // For example, verify JWT token from socket.handshake.auth
   const token = socket.handshake.auth.token;
-  
-  if (!token) {
-    next(new Error('Authentication error: No token provided'));
-    return;
+
+  // For now, allow connection without auth for testing
+  // TODO: Implement proper JWT verification
+  if (process.env.NODE_ENV === 'production' && !token) {
+    return next(new Error('Authentication error: No token provided'));
   }
 
-  // Add your JWT verification logic here
-  try {
-    // const decoded = jwt.verify(token, process.env.JWT_SECRET!);
-    // socket.data.user = decoded;
-    next();
-  } catch (error) {
-    next(new Error('Authentication error: Invalid token'));
-  }
+  // Temporarily allow all connections for testing
+  console.log(`Socket ${socket.id} connected ${token ? 'with token' : 'without token'}`);
+  next();
 };
