@@ -7,7 +7,7 @@ export const getSocketConfig = () => {
             origin: isProduction
                 ? [
                     process.env.FRONTEND_URL,
-                    'https://your-frontend.vercel.app',  // Update with your URL
+                    'https://poll-eb6r0ipj1-steven-ennis-projects.vercel.app',  // Update with your URL
                     'http://localhost:5173'
                 ]
                 : process.env.FRONTEND_URL || 'http://localhost:5173',
