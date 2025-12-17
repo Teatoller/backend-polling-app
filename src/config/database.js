@@ -5,27 +5,46 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const config = {
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-};
-
 class Database {
   constructor() {
-    this.pool = new Pool(config);
+    this.pool = this.createPool();
     this.setupEventListeners();
+  }
+
+  createPool() {
+    // Heroku provides DATABASE_URL, local uses separate vars
+    const connectionString = process.env.DATABASE_URL;
+    
+    if (connectionString) {
+      // Production (Heroku)
+      console.log('📊 Using DATABASE_URL for production connection');
+      return new Pool({
+        connectionString: connectionString,
+        ssl: {
+          rejectUnauthorized: false  // REQUIRED for Heroku Postgres
+        }
+      });
+    } else {
+      // Development (local)
+      console.log('📊 Using local database configuration');
+      return new Pool({
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '5432'),
+        database: process.env.DB_NAME || 'polling_app',
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || '',
+        ssl: false
+      });
+    }
   }
 
   setupEventListeners() {
     this.pool.on('connect', () => {
-      console.log('Connected to PostgreSQL database');
+      console.log('✅ Connected to PostgreSQL database');
     });
 
     this.pool.on('error', (err) => {
-      console.error('Database connection error:', err);
+      console.error('❌ Database connection error:', err);
     });
   }
 
