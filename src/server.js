@@ -15,20 +15,15 @@ import settingsRoutes from './routes/settings.js';
 
 import { authenticateToken } from './middleware/auth.js';
 import { initializeSocket, socketAuthMiddleware } from './services/socketService.js';
+import { getSocketConfig } from './config/socketConfig.js';
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
 
-// Socket.io configuration with CORS
-const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
-});
+// In src/server.js (replace the current io initialization)
+const io = new Server(httpServer, getSocketConfig());
 
 // Rate limiting
 const limiter = rateLimit({
@@ -48,8 +43,16 @@ const apiLimiter = rateLimit({
 app.use(helmet());
 app.use(limiter);
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
+  origin: [
+    'http://localhost:5173',
+    'https://poll-eb6r0ipj1-steven-ennis-projects.vercel.app',
+    'https://poll-onrvn9mtx-steven-ennis-projects.vercel.app',
+    /^https:\/\/poll-.*-steven-ennis-projects\.vercel\.app$/,
+    /^https:\/\/.*\.vercel\.app$/
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
 
@@ -92,16 +95,20 @@ app.get('/api/health', (req, res) => {
 // Database health check
 app.get('/api/health/db', async (req, res) => {
   try {
+    // Import dynamically to avoid circular dependencies
     const { db } = await import('./config/database.js');
-    await db.query('SELECT 1');
+    await db.query('SELECT NOW()');
     const response = {
-      message: 'Database connection is healthy'
+      message: 'Database connection is healthy',
+      timestamp: new Date().toISOString()
     };
     res.json(response);
   } catch (error) {
-    console.error('Database health check failed:', error);
+    console.error('Database health check failed:', error.message);
     const response = {
-      error: 'Database connection failed'
+      error: 'Database connection failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      timestamp: new Date().toISOString()
     };
     res.status(503).json(response);
   }
@@ -125,21 +132,21 @@ initializeSocket(io);
 // Graceful shutdown handling
 const gracefulShutdown = (signal) => {
   console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
-  
+
   httpServer.close((err) => {
     if (err) {
       console.error('Error during server shutdown:', err);
       process.exit(1);
     }
-    
+
     console.log('HTTP server closed.');
-    
+
     // Close database connections if needed
     // db.close().then(() => {
     //   console.log('Database connections closed.');
     //   process.exit(0);
     // });
-    
+
     process.exit(0);
   });
 
@@ -175,7 +182,7 @@ httpServer.listen(PORT, HOST, () => {
 🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
 📊 Database: ${process.env.DB_NAME || 'polling_app'}
   `);
-  
+
   // Log important configuration
   if (process.env.NODE_ENV === 'development') {
     console.log(`
