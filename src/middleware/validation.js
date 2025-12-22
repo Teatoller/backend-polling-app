@@ -9,8 +9,12 @@ export const validateRegistration = (req, res, next) => {
     phone: Joi.string().pattern(/^\+?[\d\s-()]+$/).optional(),
     password: Joi.string().min(6).required(),
     confirmPassword: Joi.string().valid(Joi.ref('password')).required(),
-    county: Joi.string().required(),
-    division: Joi.string().required(),
+    countyId: Joi.number().integer().allow(null).optional(),
+    countyName: Joi.string().required(),
+    subCountyId: Joi.number().integer().allow(null).optional(),
+    subCountyName: Joi.string().required(),
+    wardId: Joi.number().integer().allow(null).optional(),
+    wardName: Joi.string().required(),
     pollingStation: Joi.string().required()
   });
 
@@ -49,7 +53,14 @@ export const validatePollCreation = (req, res, next) => {
         name: Joi.string().required(),
         party: Joi.string().required(),
         photoUrl: Joi.string().optional(),
-        description: Joi.string().optional()
+        description: Joi.string().optional(),
+        countyId: Joi.number().integer().allow(null).optional(),
+        countyName: Joi.string().allow(null, '').optional(),
+        subCountyId: Joi.number().integer().allow(null).optional(),
+        subCountyName: Joi.string().allow(null, '').optional(),
+        wardId: Joi.number().integer().allow(null).optional(),
+        wardName: Joi.string().allow(null, '').optional(),
+        pollingStation: Joi.string().allow(null, '').optional()
       })
     ).min(1).required()
   });

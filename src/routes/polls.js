@@ -55,7 +55,9 @@ router.post('/vote', authenticateToken, async (req, res) => {
 
     // Get user details for polling station info
     const userResult = await client.query(
-      'SELECT county, division, polling_station FROM users WHERE id = $1',
+      `SELECT county_id, county_name, sub_county_id, sub_county_name, 
+              ward_id, ward_name, polling_station 
+       FROM users WHERE id = $1`,
       [userId]
     );
 
@@ -68,9 +70,18 @@ router.post('/vote', authenticateToken, async (req, res) => {
 
     // Record the vote
     await client.query(
-      `INSERT INTO votes (user_id, poll_id, candidate_id, county, division, polling_station)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, pollId, candidateId, user.county, user.division, user.polling_station]
+      `INSERT INTO votes (
+        user_id, poll_id, candidate_id, 
+        county_id, county_name, sub_county_id, sub_county_name,
+        ward_id, ward_name, polling_station
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        userId, pollId, candidateId, 
+        user.county_id, user.county_name, 
+        user.sub_county_id, user.sub_county_name,
+        user.ward_id, user.ward_name, 
+        user.polling_station
+      ]
     );
 
     await client.query('COMMIT');

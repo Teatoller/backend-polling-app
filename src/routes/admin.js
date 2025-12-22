@@ -71,9 +71,25 @@ router.post('/polls', authenticateAdmin, async (req, res) => {
       // Add candidates
       for (const candidate of candidates) {
         await client.query(
-          `INSERT INTO candidates (poll_id, name, party, photo_url, description)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [pollId, candidate.name, candidate.party, candidate.photoUrl, candidate.description]
+          `INSERT INTO candidates (
+            poll_id, name, party, photo_url, description,
+            county_id, county_name, sub_county_id, sub_county_name,
+            ward_id, ward_name, polling_station
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            pollId, 
+            candidate.name, 
+            candidate.party, 
+            candidate.photoUrl, 
+            candidate.description,
+            candidate.countyId || null,
+            candidate.countyName || null,
+            candidate.subCountyId || null,
+            candidate.subCountyName || null,
+            candidate.wardId || null,
+            candidate.wardName || null,
+            candidate.pollingStation || null
+          ]
         );
       }
 
@@ -392,13 +408,27 @@ router.put('/polls/:id', authenticateAdmin, async (req, res) => {
                SET name = $1, 
                    party = $2, 
                    photo_url = $3, 
-                   description = $4
-               WHERE id = $5 AND poll_id = $6`,
+                   description = $4,
+                   county_id = $5,
+                   county_name = $6,
+                   sub_county_id = $7,
+                   sub_county_name = $8,
+                   ward_id = $9,
+                   ward_name = $10,
+                   polling_station = $11
+               WHERE id = $12 AND poll_id = $13`,
               [
                 candidate.name,
                 candidate.party,
                 candidate.photoUrl || null,
                 candidate.description || null,
+                candidate.countyId || null,
+                candidate.countyName || null,
+                candidate.subCountyId || null,
+                candidate.subCountyName || null,
+                candidate.wardId || null,
+                candidate.wardName || null,
+                candidate.pollingStation || null,
                 candidate.id,
                 id
               ]
@@ -406,14 +436,24 @@ router.put('/polls/:id', authenticateAdmin, async (req, res) => {
           } else {
             // Insert new candidate
             await client.query(
-              `INSERT INTO candidates (poll_id, name, party, photo_url, description)
-               VALUES ($1, $2, $3, $4, $5)`,
+              `INSERT INTO candidates (
+                poll_id, name, party, photo_url, description,
+                county_id, county_name, sub_county_id, sub_county_name,
+                ward_id, ward_name, polling_station
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
               [
                 id,
                 candidate.name,
                 candidate.party,
                 candidate.photoUrl || null,
-                candidate.description || null
+                candidate.description || null,
+                candidate.countyId || null,
+                candidate.countyName || null,
+                candidate.subCountyId || null,
+                candidate.subCountyName || null,
+                candidate.wardId || null,
+                candidate.wardName || null,
+                candidate.pollingStation || null
               ]
             );
           }
@@ -505,8 +545,12 @@ router.get('/users', authenticateAdmin, async (req, res) => {
         u.email,
         u.national_id,
         u.phone,
-        u.county,
-        u.division,
+        u.county_id,
+        u.county_name,
+        u.sub_county_id,
+        u.sub_county_name,
+        u.ward_id,
+        u.ward_name,
         u.polling_station,
         u.is_email_verified,
         u.is_phone_verified,
@@ -522,8 +566,9 @@ router.get('/users', authenticateAdmin, async (req, res) => {
     if (search) {
       query += ` WHERE u.email ILIKE $1 
                 OR u.national_id ILIKE $1 
-                OR u.county ILIKE $1
-                OR u.division ILIKE $1
+                OR u.county_name ILIKE $1
+                OR u.sub_county_name ILIKE $1
+                OR u.ward_name ILIKE $1
                 OR u.polling_station ILIKE $1`;
       params.push(`%${search}%`);
     }
@@ -535,7 +580,7 @@ router.get('/users', authenticateAdmin, async (req, res) => {
 
     // Get total count for pagination
     const countQuery = search
-      ? `SELECT COUNT(*) as total FROM users WHERE email ILIKE $1 OR national_id ILIKE $1 OR county ILIKE $1 OR division ILIKE $1 OR polling_station ILIKE $1`
+      ? `SELECT COUNT(*) as total FROM users WHERE email ILIKE $1 OR national_id ILIKE $1 OR county_name ILIKE $1 OR sub_county_name ILIKE $1 OR ward_name ILIKE $1 OR polling_station ILIKE $1`
       : `SELECT COUNT(*) as total FROM users`;
 
     const countParams = search ? [`%${search}%`] : [];
@@ -547,8 +592,12 @@ router.get('/users', authenticateAdmin, async (req, res) => {
       email: user.email,
       nationalId: user.national_id,
       phone: user.phone,
-      county: user.county,
-      division: user.division,
+      countyId: user.county_id,
+      countyName: user.county_name,
+      subCountyId: user.sub_county_id,
+      subCountyName: user.sub_county_name,
+      wardId: user.ward_id,
+      wardName: user.ward_name,
       pollingStation: user.polling_station,
       isEmailVerified: user.is_email_verified,
       isPhoneVerified: user.is_phone_verified,
@@ -604,8 +653,12 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
       email: user.email,
       nationalId: user.national_id,
       phone: user.phone,
-      county: user.county,
-      division: user.division,
+      countyId: user.county_id,
+      countyName: user.county_name,
+      subCountyId: user.sub_county_id,
+      subCountyName: user.sub_county_name,
+      wardId: user.ward_id,
+      wardName: user.ward_name,
       pollingStation: user.polling_station,
       isEmailVerified: user.is_email_verified,
       isPhoneVerified: user.is_phone_verified,
@@ -627,8 +680,12 @@ router.put('/users/:id', authenticateAdmin, async (req, res) => {
     const {
       email,
       phone,
-      county,
-      division,
+      countyId,
+      countyName,
+      subCountyId,
+      subCountyName,
+      wardId,
+      wardName,
       pollingStation,
       isEmailVerified,
       isPhoneVerified
@@ -638,15 +695,27 @@ router.put('/users/:id', authenticateAdmin, async (req, res) => {
       `UPDATE users 
        SET email = COALESCE($1, email),
            phone = COALESCE($2, phone),
-           county = COALESCE($3, county),
-           division = COALESCE($4, division),
-           polling_station = COALESCE($5, polling_station),
-           is_email_verified = COALESCE($6, is_email_verified),
-           is_phone_verified = COALESCE($7, is_phone_verified),
+           county_id = COALESCE($3, county_id),
+           county_name = COALESCE($4, county_name),
+           sub_county_id = COALESCE($5, sub_county_id),
+           sub_county_name = COALESCE($6, sub_county_name),
+           ward_id = COALESCE($7, ward_id),
+           ward_name = COALESCE($8, ward_name),
+           polling_station = COALESCE($9, polling_station),
+           is_email_verified = COALESCE($10, is_email_verified),
+           is_phone_verified = COALESCE($11, is_phone_verified),
            updated_at = NOW()
-       WHERE id = $8
+       WHERE id = $12
        RETURNING *`,
-      [email, phone, county, division, pollingStation, isEmailVerified, isPhoneVerified, id]
+      [
+        email, phone, 
+        countyId, countyName, 
+        subCountyId, subCountyName,
+        wardId, wardName,
+        pollingStation, 
+        isEmailVerified, isPhoneVerified, 
+        id
+      ]
     );
 
     if (result.rows.length === 0) {
@@ -659,8 +728,12 @@ router.put('/users/:id', authenticateAdmin, async (req, res) => {
       email: user.email,
       nationalId: user.national_id,
       phone: user.phone,
-      county: user.county,
-      division: user.division,
+      countyId: user.county_id,
+      countyName: user.county_name,
+      subCountyId: user.sub_county_id,
+      subCountyName: user.sub_county_name,
+      wardId: user.ward_id,
+      wardName: user.ward_name,
       pollingStation: user.polling_station,
       isEmailVerified: user.is_email_verified,
       isPhoneVerified: user.is_phone_verified,

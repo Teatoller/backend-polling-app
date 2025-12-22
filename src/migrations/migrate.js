@@ -11,14 +11,20 @@ const createTables = async () => {
         email VARCHAR(255) UNIQUE NOT NULL,
         phone VARCHAR(20),
         password_hash VARCHAR(255) NOT NULL,
-        county VARCHAR(100) NOT NULL,
-        division VARCHAR(100) NOT NULL,
+        county_id INTEGER,
+        county_name VARCHAR(100) NOT NULL,
+        sub_county_id INTEGER,
+        sub_county_name VARCHAR(100) NOT NULL,
+        ward_id INTEGER,
+        ward_name VARCHAR(100) NOT NULL,
         polling_station VARCHAR(100) NOT NULL,
         is_email_verified BOOLEAN DEFAULT FALSE,
         is_phone_verified BOOLEAN DEFAULT FALSE,
         email_verification_token VARCHAR(255),
         phone_verification_code VARCHAR(6),
         phone_verification_expires TIMESTAMP,
+        password_reset_token VARCHAR(255),
+        password_reset_expires TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -41,6 +47,13 @@ const createTables = async () => {
         party VARCHAR(255) NOT NULL,
         photo_url VARCHAR(500),
         description TEXT,
+        county_id INTEGER,
+        county_name VARCHAR(100),
+        sub_county_id INTEGER,
+        sub_county_name VARCHAR(100),
+        ward_id INTEGER,
+        ward_name VARCHAR(100),
+        polling_station VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -50,8 +63,12 @@ const createTables = async () => {
         poll_id INTEGER REFERENCES polls(id) ON DELETE CASCADE,
         candidate_id INTEGER REFERENCES candidates(id) ON DELETE CASCADE,
         polling_station VARCHAR(100) NOT NULL,
-        county VARCHAR(100) NOT NULL,
-        division VARCHAR(100) NOT NULL,
+        county_id INTEGER,
+        county_name VARCHAR(100) NOT NULL,
+        sub_county_id INTEGER,
+        sub_county_name VARCHAR(100) NOT NULL,
+        ward_id INTEGER,
+        ward_name VARCHAR(100) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, poll_id)
       );
