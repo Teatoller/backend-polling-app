@@ -104,3 +104,18 @@ export const validateEmail = (req, res, next) => {
   }
   next();
 };
+
+export const validateSurveyVote = (req, res, next) => {
+  const schema = Joi.object({
+    surveyId: Joi.number().integer().positive().required(),
+    optionId: Joi.number().integer().positive().required()
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) {
+    const response = { error: error.details[0].message };
+    res.status(400).json(response);
+    return;
+  }
+  next();
+};

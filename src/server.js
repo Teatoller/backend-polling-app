@@ -13,6 +13,7 @@ import adminRoutes from './routes/admin.js';
 import resultsRoutes from './routes/results.js';
 import resourcesRoutes from './routes/resources.js';
 import settingsRoutes from './routes/settings.js';
+import surveyRoutes from './routes/surveys.js';
 
 import { authenticateToken } from './middleware/auth.js';
 import { initializeSocket, socketAuthMiddleware } from './services/socketService.js';
@@ -75,6 +76,7 @@ app.use((err, req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/polls', authenticateToken, pollRoutes);
+app.use('/api/surveys', surveyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/results', resultsRoutes);
 app.use('/api/settings', settingsRoutes);

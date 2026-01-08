@@ -1115,4 +1115,293 @@ router.get('/export/:type', authenticateAdmin, async (req, res) => {
 //   }
 // });
 
+// ========== SURVEY MANAGEMENT ENDPOINTS ==========
+
+// Create a new survey
+router.post('/surveys', authenticateAdmin, async (req, res) => {
+  const client = await db.getClient();
+  
+  try {
+    await client.query('BEGIN');
+
+    const {
+      question,
+      description,
+      startDate,
+      endDate,
+      scope = 'GENERAL',
+      countyId,
+      subCountyId,
+      wardId,
+      options
+    } = req.body;
+
+    // Validation
+    if (!question || !startDate || !endDate) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Question, start date, and end date are required' });
+    }
+
+    if (!options || options.length < 2) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'At least 2 options are required' });
+    }
+
+    // Validate scope-specific requirements
+    if (scope === 'COUNTY' && !countyId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'County ID required for COUNTY scope' });
+    }
+    if (scope === 'SUB_COUNTY' && (!countyId || !subCountyId)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'County and Sub-County IDs required for SUB_COUNTY scope' });
+    }
+    if (scope === 'WARD' && (!countyId || !subCountyId || !wardId)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'County, Sub-County, and Ward IDs required for WARD scope' });
+    }
+
+    // Create survey
+    const surveyResult = await client.query(
+      `INSERT INTO surveys 
+        (question, description, start_date, end_date, is_active, scope, county_id, sub_county_id, ward_id, created_by)
+       VALUES ($1, $2, $3, $4, true, $5, $6, $7, $8, $9)
+       RETURNING id, question, description, start_date AS "startDate", end_date AS "endDate", 
+                 is_active, scope, county_id AS "countyId", sub_county_id AS "subCountyId", 
+                 ward_id AS "wardId", created_at AS "createdAt"`,
+      [question, description, startDate, endDate, scope, countyId || null, subCountyId || null, wardId || null, req.admin.adminId]
+    );
+
+    const survey = surveyResult.rows[0];
+
+    // Create options
+    const optionPromises = options.map((option, index) =>
+      client.query(
+        `INSERT INTO survey_options (survey_id, option_text, display_order)
+         VALUES ($1, $2, $3)
+         RETURNING id, option_text AS "optionText", vote_count AS "voteCount"`,
+        [survey.id, option.optionText, index]
+      )
+    );
+
+    const optionResults = await Promise.all(optionPromises);
+    const createdOptions = optionResults.map(result => result.rows[0]);
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      message: 'Survey created successfully',
+      survey: {
+        ...survey,
+        options: createdOptions
+      }
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error creating survey:', error);
+    res.status(500).json({ error: 'Failed to create survey' });
+  } finally {
+    client.release();
+  }
+});
+
+// Get all surveys (admin view)
+router.get('/surveys', authenticateAdmin, async (req, res) => {
+  try {
+    const { scope, is_active } = req.query;
+
+    let query = `
+      SELECT 
+        s.id,
+        s.question,
+        s.description,
+        s.start_date AS "startDate",
+        s.end_date AS "endDate",
+        s.is_active,
+        s.scope,
+        s.county_id AS "countyId",
+        s.sub_county_id AS "subCountyId",
+        s.ward_id AS "wardId",
+        s.created_at AS "createdAt",
+        COUNT(DISTINCT sv.id) AS "totalVotes"
+      FROM surveys s
+      LEFT JOIN survey_votes sv ON s.id = sv.survey_id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (scope) {
+      query += ` AND s.scope = $${paramIndex}`;
+      params.push(scope);
+      paramIndex++;
+    }
+
+    if (is_active !== undefined) {
+      query += ` AND s.is_active = $${paramIndex}`;
+      params.push(is_active === 'true');
+      paramIndex++;
+    }
+
+    query += `
+      GROUP BY s.id
+      ORDER BY s.created_at DESC
+    `;
+
+    const result = await db.query(query, params);
+
+    // Fetch options for each survey
+    const surveysWithOptions = await Promise.all(
+      result.rows.map(async (survey) => {
+        const optionsResult = await db.query(
+          `SELECT 
+            id, 
+            option_text AS "optionText",
+            vote_count AS "voteCount"
+          FROM survey_options 
+          WHERE survey_id = $1 
+          ORDER BY display_order`,
+          [survey.id]
+        );
+
+        return {
+          ...survey,
+          totalVotes: parseInt(survey.totalVotes) || 0,
+          options: optionsResult.rows
+        };
+      })
+    );
+
+    res.json(surveysWithOptions);
+  } catch (error) {
+    console.error('Error fetching surveys:', error);
+    res.status(500).json({ error: 'Failed to fetch surveys' });
+  }
+});
+
+// Update survey
+router.put('/surveys/:id', authenticateAdmin, async (req, res) => {
+  const client = await db.getClient();
+  
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const { question, description, startDate, endDate, scope, countyId, subCountyId, wardId, options } = req.body;
+
+    // Update survey
+    const surveyResult = await client.query(
+      `UPDATE surveys 
+       SET question = COALESCE($1, question),
+           description = COALESCE($2, description),
+           start_date = COALESCE($3, start_date),
+           end_date = COALESCE($4, end_date),
+           scope = COALESCE($5, scope),
+           county_id = COALESCE($6, county_id),
+           sub_county_id = COALESCE($7, sub_county_id),
+           ward_id = COALESCE($8, ward_id)
+       WHERE id = $9
+       RETURNING *`,
+      [question, description, startDate, endDate, scope, countyId, subCountyId, wardId, id]
+    );
+
+    if (surveyResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+
+    // Update options if provided
+    if (options && Array.isArray(options)) {
+      // Delete existing options
+      await client.query('DELETE FROM survey_options WHERE survey_id = $1', [id]);
+
+      // Create new options
+      const optionPromises = options.map((option, index) =>
+        client.query(
+          `INSERT INTO survey_options (survey_id, option_text, display_order)
+           VALUES ($1, $2, $3)
+           RETURNING id, option_text AS "optionText", vote_count AS "voteCount"`,
+          [id, option.optionText, index]
+        )
+      );
+
+      await Promise.all(optionPromises);
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ message: 'Survey updated successfully', surveyId: id });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error updating survey:', error);
+    res.status(500).json({ error: 'Failed to update survey' });
+  } finally {
+    client.release();
+  }
+});
+
+// Toggle survey status
+router.patch('/surveys/:id/toggle', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      `UPDATE surveys 
+       SET is_active = NOT is_active
+       WHERE id = $1
+       RETURNING is_active`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+
+    res.json({
+      message: 'Survey status toggled successfully',
+      is_active: result.rows[0].is_active
+    });
+  } catch (error) {
+    console.error('Error toggling survey status:', error);
+    res.status(500).json({ error: 'Failed to toggle survey status' });
+  }
+});
+
+// Delete survey
+router.delete('/surveys/:id', authenticateAdmin, async (req, res) => {
+  const client = await db.getClient();
+  
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+
+    // Delete votes first
+    await client.query('DELETE FROM survey_votes WHERE survey_id = $1', [id]);
+
+    // Delete options
+    await client.query('DELETE FROM survey_options WHERE survey_id = $1', [id]);
+
+    // Delete survey
+    const result = await client.query('DELETE FROM surveys WHERE id = $1 RETURNING id', [id]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ message: 'Survey deleted successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error deleting survey:', error);
+    res.status(500).json({ error: 'Failed to delete survey' });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;
