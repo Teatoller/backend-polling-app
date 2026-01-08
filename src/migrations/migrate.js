@@ -29,6 +29,14 @@ const createTables = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'admin',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS polls (
         id SERIAL PRIMARY KEY,
         office_name VARCHAR(255) NOT NULL,
@@ -36,7 +44,7 @@ const createTables = async () => {
         start_date TIMESTAMP NOT NULL,
         end_date TIMESTAMP NOT NULL,
         is_active BOOLEAN DEFAULT TRUE,
-        created_by INTEGER REFERENCES users(id),
+        created_by INTEGER REFERENCES admin_users(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -71,14 +79,6 @@ const createTables = async () => {
         ward_name VARCHAR(100) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, poll_id)
-      );
-
-      CREATE TABLE IF NOT EXISTS admin_users (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(50) DEFAULT 'admin',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE TABLE IF NOT EXISTS system_settings (
