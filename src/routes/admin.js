@@ -960,7 +960,10 @@ router.get('/export/:type', authenticateAdmin, async (req, res) => {
       case 'votes':
         if (pollId) {
           query = `
-            SELECT v.*, u.email, u.county, p.office_name, c.name as candidate_name, c.party
+               SELECT v.*, u.email,
+                 u.county_id, u.county_name, u.sub_county_id, u.sub_county_name,
+                 u.ward_id, u.ward_name, u.polling_station,
+                 p.office_name, c.name as candidate_name, c.party
             FROM votes v
             JOIN users u ON v.user_id = u.id
             JOIN polls p ON v.poll_id = p.id
@@ -971,7 +974,10 @@ router.get('/export/:type', authenticateAdmin, async (req, res) => {
           filename = `votes-poll-${pollId}-export`;
         } else {
           query = `
-            SELECT v.*, u.email, u.county, p.office_name, c.name as candidate_name, c.party
+                 SELECT v.*, u.email,
+                   u.county_id, u.county_name, u.sub_county_id, u.sub_county_name,
+                   u.ward_id, u.ward_name, u.polling_station,
+                   p.office_name, c.name as candidate_name, c.party
             FROM votes v
             JOIN users u ON v.user_id = u.id
             JOIN polls p ON v.poll_id = p.id
