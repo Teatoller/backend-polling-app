@@ -51,7 +51,8 @@ router.post('/login', async (req, res) => {
 // Create poll (Admin only)
 router.post('/polls', authenticateAdmin, async (req, res) => {
   try {
-    const { officeName, description, startDate, endDate, candidates } = req.body;
+    const { officeName, description, startDate, endDate, candidates, scope,
+      countyId, countyName, subCountyId, subCountyName, wardId, wardName, pollingStation } = req.body;
     const adminId = req.admin.adminId;
 
     const client = await db.getClient();
@@ -61,9 +62,20 @@ router.post('/polls', authenticateAdmin, async (req, res) => {
 
       // Create poll
       const pollResult = await client.query(
-        `INSERT INTO polls (office_name, description, start_date, end_date, created_by)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [officeName, description, startDate, endDate, adminId]
+        `INSERT INTO polls (
+           office_name, description, start_date, end_date, is_active,
+           scope, county_id, county_name, sub_county_id, sub_county_name,
+           ward_id, ward_name, polling_station, created_by
+         ) VALUES (
+           $1, $2, $3, $4, TRUE,
+           COALESCE($5, 'GENERAL'), $6, $7, $8, $9,
+           $10, $11, $12, $13
+         ) RETURNING id`,
+        [officeName, description, startDate, endDate,
+         scope,
+         countyId || null, countyName || null, subCountyId || null, subCountyName || null,
+         wardId || null, wardName || null, pollingStation || null,
+         adminId]
       );
 
       const pollId = pollResult.rows[0].id;
@@ -294,6 +306,14 @@ router.get('/polls/:id', authenticateAdmin, async (req, res) => {
         p.description,
         p.start_date,
         p.end_date,
+        p.scope,
+        p.county_id,
+        p.county_name,
+        p.sub_county_id,
+        p.sub_county_name,
+        p.ward_id,
+        p.ward_name,
+        p.polling_station,
         p.is_active,
         p.created_at,
         COUNT(DISTINCT v.id) as total_votes
@@ -330,6 +350,14 @@ router.get('/polls/:id', authenticateAdmin, async (req, res) => {
       description: poll.description,
       startDate: poll.start_date,
       endDate: poll.end_date,
+      scope: poll.scope,
+      countyId: poll.county_id,
+      countyName: poll.county_name,
+      subCountyId: poll.sub_county_id,
+      subCountyName: poll.sub_county_name,
+      wardId: poll.ward_id,
+      wardName: poll.ward_name,
+      pollingStation: poll.polling_station,
       is_active: poll.is_active,
       totalVotes: parseInt(poll.total_votes) || 0,
       candidates: candidatesResult.rows.map(c => ({
@@ -352,7 +380,8 @@ router.get('/polls/:id', authenticateAdmin, async (req, res) => {
 router.put('/polls/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { officeName, description, startDate, endDate, is_active, candidates } = req.body;
+    const { officeName, description, startDate, endDate, is_active, candidates, scope,
+      countyId, countyName, subCountyId, subCountyName, wardId, wardName, pollingStation } = req.body;
 
     console.log('Updating poll:', id);
     console.log('Received data:', { officeName, description, startDate, endDate, is_active, candidatesCount: candidates?.length });
@@ -370,10 +399,22 @@ router.put('/polls/:id', authenticateAdmin, async (req, res) => {
              start_date = COALESCE($3, start_date),
              end_date = COALESCE($4, end_date),
              is_active = COALESCE($5, is_active),
+             scope = COALESCE($6, scope),
+             county_id = COALESCE($7, county_id),
+             county_name = COALESCE($8, county_name),
+             sub_county_id = COALESCE($9, sub_county_id),
+             sub_county_name = COALESCE($10, sub_county_name),
+             ward_id = COALESCE($11, ward_id),
+             ward_name = COALESCE($12, ward_name),
+             polling_station = COALESCE($13, polling_station),
              updated_at = NOW()
-         WHERE id = $6
+         WHERE id = $14
          RETURNING *`,
-        [officeName, description, startDate, endDate, is_active, id]
+        [officeName, description, startDate, endDate, is_active,
+         scope || null, countyId || null, countyName || null,
+         subCountyId || null, subCountyName || null,
+         wardId || null, wardName || null, pollingStation || null,
+         id]
       );
 
       if (pollResult.rows.length === 0) {

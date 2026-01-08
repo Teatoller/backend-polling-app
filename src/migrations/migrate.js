@@ -44,6 +44,14 @@ const createTables = async () => {
         start_date TIMESTAMP NOT NULL,
         end_date TIMESTAMP NOT NULL,
         is_active BOOLEAN DEFAULT TRUE,
+        scope VARCHAR(20) DEFAULT 'GENERAL',
+        county_id INTEGER,
+        county_name VARCHAR(100),
+        sub_county_id INTEGER,
+        sub_county_name VARCHAR(100),
+        ward_id INTEGER,
+        ward_name VARCHAR(100),
+        polling_station VARCHAR(100),
         created_by INTEGER REFERENCES admin_users(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
