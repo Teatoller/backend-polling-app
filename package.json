@@ -10,7 +10,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "build": "echo \"No build step for JS project\"",
-    "migrate": "node src/migrations/migrate.js"
+    "migrate": "node src/migrations/migrate.js",
+    "drop-tables": "node src/migrations/drop_all_tables.js"
   },
   "license": "MIT",
   "dependencies": {
