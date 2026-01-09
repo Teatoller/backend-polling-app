@@ -295,16 +295,13 @@ router.get('/:id/results', authenticateToken, async (req, res) => {
         s.is_active,
         s.scope,
         s.county_id AS "countyId",
-        c.name AS "countyName",
+        NULL::text AS "countyName",
         s.sub_county_id AS "subCountyId",
-        sc.name AS "subCountyName",
+        NULL::text AS "subCountyName",
         s.ward_id AS "wardId",
-        w.name AS "wardName",
+        NULL::text AS "wardName",
         s.created_at AS "createdAt"
       FROM surveys s
-      LEFT JOIN counties c ON s.county_id = c.id
-      LEFT JOIN sub_counties sc ON s.sub_county_id = sc.id
-      LEFT JOIN wards w ON s.ward_id = w.id
       WHERE s.id = $1`,
       [id]
     );
