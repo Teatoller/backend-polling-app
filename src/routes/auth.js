@@ -12,7 +12,20 @@ const router = express.Router();
 // Register endpoint
 router.post('/register', validateRegistration, async (req, res) => {
   try {
-    const { nationalId, email, phone, password, confirmPassword, county, division, pollingStation } = req.body;
+    const { 
+      nationalId, 
+      email, 
+      phone, 
+      password, 
+      confirmPassword, 
+      countyId,
+      countyName,
+      subCountyId,
+      subCountyName,
+      wardId,
+      wardName,
+      pollingStation 
+    } = req.body;
 
     // Check if user already exists
     const existingUser = await db.query(
@@ -37,12 +50,16 @@ router.post('/register', validateRegistration, async (req, res) => {
     // Insert user
     const result = await db.query(
       `INSERT INTO users (
-        national_id, email, phone, password_hash, county, division, polling_station,
+        national_id, email, phone, password_hash, 
+        county_id, county_name, sub_county_id, sub_county_name, 
+        ward_id, ward_name, polling_station,
         email_verification_token, phone_verification_code, phone_verification_expires
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW() + INTERVAL '10 minutes')
-      RETURNING id, email, phone, county, division, polling_station`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW() + INTERVAL '10 minutes')
+      RETURNING id, email, national_id, phone, county_name, sub_county_name, ward_name, polling_station`,
       [
-        nationalId, email, phone, passwordHash, county, division, pollingStation,
+        nationalId, email, phone, passwordHash, 
+        countyId, countyName, subCountyId, subCountyName,
+        wardId, wardName, pollingStation,
         emailVerificationToken, phoneVerificationCode
       ]
     );
@@ -82,9 +99,12 @@ router.post('/register', validateRegistration, async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        county: user.county,
-        division: user.division,
-        pollingStation: user.polling_station
+        nationalId: user.national_id,
+        county: user.county_name,
+        division: user.sub_county_name,
+        pollingStation: user.polling_station,
+        isEmailVerified: false,
+        isPhoneVerified: false
       },
       token
     });
@@ -102,8 +122,9 @@ router.post('/login', validateLogin, async (req, res) => {
 
     // Find user
     const result = await db.query(
-      `SELECT id, email, password_hash, is_email_verified, 
-              county, division, polling_station 
+      `SELECT id, email, password_hash, is_email_verified, is_phone_verified,
+              national_id, county_id, county_name, sub_county_id, sub_county_name,
+              ward_id, ward_name, polling_station 
        FROM users WHERE email = $1`,
       [email]
     );
@@ -139,10 +160,12 @@ router.post('/login', validateLogin, async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        county: user.county,
-        division: user.division,
+        nationalId: user.national_id,
+        county: user.county_name,
+        division: user.sub_county_name,
         pollingStation: user.polling_station,
-        isEmailVerified: user.is_email_verified
+        isEmailVerified: user.is_email_verified,
+        isPhoneVerified: user.is_phone_verified
       },
       token
     });

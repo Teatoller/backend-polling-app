@@ -42,12 +42,12 @@ router.get('/:pollId', authenticateToken, async (req, res) => {
 
     // Get location breakdown
     const locationResult = await db.query(
-      `SELECT county, division, polling_station, 
+      `SELECT county_name, sub_county_name, ward_name, polling_station, 
               COUNT(*) as votes_per_station
        FROM votes 
        WHERE poll_id = $1
-       GROUP BY county, division, polling_station
-       ORDER BY county, division, polling_station`,
+       GROUP BY county_name, sub_county_name, ward_name, polling_station
+       ORDER BY county_name, sub_county_name, ward_name, polling_station`,
       [pollId]
     );
 

@@ -9,9 +9,15 @@ export const validateRegistration = (req, res, next) => {
     phone: Joi.string().pattern(/^\+?[\d\s-()]+$/).optional(),
     password: Joi.string().min(6).required(),
     confirmPassword: Joi.string().valid(Joi.ref('password')).required(),
-    county: Joi.string().required(),
-    division: Joi.string().required(),
-    pollingStation: Joi.string().required()
+    countyId: Joi.number().integer().allow(null).optional(),
+    // allow empty names when ID is not provided; backend stores empty string if absent
+    countyName: Joi.string().allow('', null).optional(),
+    subCountyId: Joi.number().integer().allow(null).optional(),
+    subCountyName: Joi.string().allow('', null).optional(),
+    wardId: Joi.number().integer().allow(null).optional(),
+    wardName: Joi.string().allow('', null).optional(),
+    // pollingStation is required for storing where the user will vote; allow empty when ID-based flows don't provide it
+    pollingStation: Joi.string().allow('', null).optional()
   });
 
   const { error } = schema.validate(req.body);
@@ -49,7 +55,14 @@ export const validatePollCreation = (req, res, next) => {
         name: Joi.string().required(),
         party: Joi.string().required(),
         photoUrl: Joi.string().optional(),
-        description: Joi.string().optional()
+        description: Joi.string().optional(),
+        countyId: Joi.number().integer().allow(null).optional(),
+        countyName: Joi.string().allow(null, '').optional(),
+        subCountyId: Joi.number().integer().allow(null).optional(),
+        subCountyName: Joi.string().allow(null, '').optional(),
+        wardId: Joi.number().integer().allow(null).optional(),
+        wardName: Joi.string().allow(null, '').optional(),
+        pollingStation: Joi.string().allow(null, '').optional()
       })
     ).min(1).required()
   });
@@ -81,6 +94,21 @@ export const validateVoteSubmission = (req, res, next) => {
 export const validateEmail = (req, res, next) => {
   const schema = Joi.object({
     email: Joi.string().email().required()
+  });
+
+  const { error } = schema.validate(req.body);
+  if (error) {
+    const response = { error: error.details[0].message };
+    res.status(400).json(response);
+    return;
+  }
+  next();
+};
+
+export const validateSurveyVote = (req, res, next) => {
+  const schema = Joi.object({
+    surveyId: Joi.number().integer().positive().required(),
+    optionId: Joi.number().integer().positive().required()
   });
 
   const { error } = schema.validate(req.body);
