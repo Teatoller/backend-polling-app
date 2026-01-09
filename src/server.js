@@ -11,7 +11,9 @@ import authRoutes from './routes/auth.js';
 import pollRoutes from './routes/polls.js';
 import adminRoutes from './routes/admin.js';
 import resultsRoutes from './routes/results.js';
+import resourcesRoutes from './routes/resources.js';
 import settingsRoutes from './routes/settings.js';
+import surveyRoutes from './routes/surveys.js';
 
 import { authenticateToken } from './middleware/auth.js';
 import { initializeSocket, socketAuthMiddleware } from './services/socketService.js';
@@ -39,21 +41,27 @@ const apiLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.'
 });
 
-// Middleware
-app.use(helmet());
-app.use(limiter);
-app.use(cors({
+// CORS configuration
+const corsOptions = {
   origin: [
     'http://localhost:5173',
+    'http://localhost:3000',
     'https://poll-eb6r0ipj1-steven-ennis-projects.vercel.app',
     'https://poll-onrvn9mtx-steven-ennis-projects.vercel.app',
     /^https:\/\/poll-.*-steven-ennis-projects\.vercel\.app$/,
     /^https:\/\/.*\.vercel\.app$/
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200,
+  preflightContinue: false
+};
+
+// Middleware
+app.use(helmet());
+app.use(limiter);
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Make io accessible to routes
@@ -74,9 +82,11 @@ app.use((err, req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/polls', authenticateToken, pollRoutes);
+app.use('/api/surveys', surveyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/results', resultsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/resources', resourcesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

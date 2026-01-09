@@ -8,6 +8,17 @@ const router = express.Router();
 // Get active polls
 router.get('/active', async (req, res) => {
   try {
+    // Load user's location to filter polls by scope
+    const userId = req.user?.userId;
+    let userLoc = null;
+    if (userId) {
+      const ures = await db.query(
+        `SELECT county_id, sub_county_id, ward_id FROM users WHERE id = $1`,
+        [userId]
+      );
+      userLoc = ures.rows[0] || null;
+    }
+
     const result = await db.query(
       `SELECT p.*, 
               json_agg(
@@ -21,9 +32,34 @@ router.get('/active', async (req, res) => {
               ) as candidates
        FROM polls p
        LEFT JOIN candidates c ON p.id = c.poll_id
-       WHERE p.is_active = TRUE AND p.end_date > NOW()
+       WHERE p.is_active = TRUE 
+         AND p.end_date > NOW()
+         AND (
+           p.scope = 'NATIONAL'
+           OR (
+             p.scope = 'GENERAL' AND p.county_id IS NULL AND p.sub_county_id IS NULL AND p.ward_id IS NULL
+           )
+           OR (
+             $1::INT IS NOT NULL AND p.scope = 'COUNTY' AND p.county_id = $1
+           )
+           OR (
+             $2::INT IS NOT NULL AND p.scope = 'SUB_COUNTY' AND p.sub_county_id = $2
+           )
+           OR (
+             $3::INT IS NOT NULL AND p.scope = 'WARD' AND p.ward_id = $3
+           )
+           OR (
+             -- Restricted general polls with specific location values
+             (p.scope = 'GENERAL') AND (
+               ($1::INT IS NOT NULL AND p.county_id = $1) OR
+               ($2::INT IS NOT NULL AND p.sub_county_id = $2) OR
+               ($3::INT IS NOT NULL AND p.ward_id = $3)
+             )
+           )
+         )
        GROUP BY p.id
-       ORDER BY p.created_at DESC`
+       ORDER BY p.created_at DESC`,
+      [userLoc?.county_id || null, userLoc?.sub_county_id || null, userLoc?.ward_id || null]
     );
 
     res.json(result.rows);
@@ -55,7 +91,9 @@ router.post('/vote', authenticateToken, async (req, res) => {
 
     // Get user details for polling station info
     const userResult = await client.query(
-      'SELECT county, division, polling_station FROM users WHERE id = $1',
+      `SELECT county_id, county_name, sub_county_id, sub_county_name, 
+              ward_id, ward_name, polling_station 
+       FROM users WHERE id = $1`,
       [userId]
     );
 
@@ -68,9 +106,18 @@ router.post('/vote', authenticateToken, async (req, res) => {
 
     // Record the vote
     await client.query(
-      `INSERT INTO votes (user_id, poll_id, candidate_id, county, division, polling_station)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, pollId, candidateId, user.county, user.division, user.polling_station]
+      `INSERT INTO votes (
+        user_id, poll_id, candidate_id, 
+        county_id, county_name, sub_county_id, sub_county_name,
+        ward_id, ward_name, polling_station
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        userId, pollId, candidateId, 
+        user.county_id, user.county_name, 
+        user.sub_county_id, user.sub_county_name,
+        user.ward_id, user.ward_name, 
+        user.polling_station
+      ]
     );
 
     await client.query('COMMIT');

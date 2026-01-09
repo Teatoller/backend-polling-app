@@ -51,7 +51,8 @@ router.post('/login', async (req, res) => {
 // Create poll (Admin only)
 router.post('/polls', authenticateAdmin, async (req, res) => {
   try {
-    const { officeName, description, startDate, endDate, candidates } = req.body;
+    const { officeName, description, startDate, endDate, candidates, scope,
+      countyId, countyName, subCountyId, subCountyName, wardId, wardName, pollingStation } = req.body;
     const adminId = req.admin.adminId;
 
     const client = await db.getClient();
@@ -61,9 +62,20 @@ router.post('/polls', authenticateAdmin, async (req, res) => {
 
       // Create poll
       const pollResult = await client.query(
-        `INSERT INTO polls (office_name, description, start_date, end_date, created_by)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [officeName, description, startDate, endDate, adminId]
+        `INSERT INTO polls (
+           office_name, description, start_date, end_date, is_active,
+           scope, county_id, county_name, sub_county_id, sub_county_name,
+           ward_id, ward_name, polling_station, created_by
+         ) VALUES (
+           $1, $2, $3, $4, TRUE,
+           COALESCE($5, 'GENERAL'), $6, $7, $8, $9,
+           $10, $11, $12, $13
+         ) RETURNING id`,
+        [officeName, description, startDate, endDate,
+         scope,
+         countyId || null, countyName || null, subCountyId || null, subCountyName || null,
+         wardId || null, wardName || null, pollingStation || null,
+         adminId]
       );
 
       const pollId = pollResult.rows[0].id;
@@ -71,9 +83,25 @@ router.post('/polls', authenticateAdmin, async (req, res) => {
       // Add candidates
       for (const candidate of candidates) {
         await client.query(
-          `INSERT INTO candidates (poll_id, name, party, photo_url, description)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [pollId, candidate.name, candidate.party, candidate.photoUrl, candidate.description]
+          `INSERT INTO candidates (
+            poll_id, name, party, photo_url, description,
+            county_id, county_name, sub_county_id, sub_county_name,
+            ward_id, ward_name, polling_station
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            pollId, 
+            candidate.name, 
+            candidate.party, 
+            candidate.photoUrl, 
+            candidate.description,
+            candidate.countyId || null,
+            candidate.countyName || null,
+            candidate.subCountyId || null,
+            candidate.subCountyName || null,
+            candidate.wardId || null,
+            candidate.wardName || null,
+            candidate.pollingStation || null
+          ]
         );
       }
 
@@ -278,6 +306,14 @@ router.get('/polls/:id', authenticateAdmin, async (req, res) => {
         p.description,
         p.start_date,
         p.end_date,
+        p.scope,
+        p.county_id,
+        p.county_name,
+        p.sub_county_id,
+        p.sub_county_name,
+        p.ward_id,
+        p.ward_name,
+        p.polling_station,
         p.is_active,
         p.created_at,
         COUNT(DISTINCT v.id) as total_votes
@@ -314,6 +350,14 @@ router.get('/polls/:id', authenticateAdmin, async (req, res) => {
       description: poll.description,
       startDate: poll.start_date,
       endDate: poll.end_date,
+      scope: poll.scope,
+      countyId: poll.county_id,
+      countyName: poll.county_name,
+      subCountyId: poll.sub_county_id,
+      subCountyName: poll.sub_county_name,
+      wardId: poll.ward_id,
+      wardName: poll.ward_name,
+      pollingStation: poll.polling_station,
       is_active: poll.is_active,
       totalVotes: parseInt(poll.total_votes) || 0,
       candidates: candidatesResult.rows.map(c => ({
@@ -336,7 +380,8 @@ router.get('/polls/:id', authenticateAdmin, async (req, res) => {
 router.put('/polls/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { officeName, description, startDate, endDate, is_active, candidates } = req.body;
+    const { officeName, description, startDate, endDate, is_active, candidates, scope,
+      countyId, countyName, subCountyId, subCountyName, wardId, wardName, pollingStation } = req.body;
 
     console.log('Updating poll:', id);
     console.log('Received data:', { officeName, description, startDate, endDate, is_active, candidatesCount: candidates?.length });
@@ -354,10 +399,22 @@ router.put('/polls/:id', authenticateAdmin, async (req, res) => {
              start_date = COALESCE($3, start_date),
              end_date = COALESCE($4, end_date),
              is_active = COALESCE($5, is_active),
+             scope = COALESCE($6, scope),
+             county_id = COALESCE($7, county_id),
+             county_name = COALESCE($8, county_name),
+             sub_county_id = COALESCE($9, sub_county_id),
+             sub_county_name = COALESCE($10, sub_county_name),
+             ward_id = COALESCE($11, ward_id),
+             ward_name = COALESCE($12, ward_name),
+             polling_station = COALESCE($13, polling_station),
              updated_at = NOW()
-         WHERE id = $6
+         WHERE id = $14
          RETURNING *`,
-        [officeName, description, startDate, endDate, is_active, id]
+        [officeName, description, startDate, endDate, is_active,
+         scope || null, countyId || null, countyName || null,
+         subCountyId || null, subCountyName || null,
+         wardId || null, wardName || null, pollingStation || null,
+         id]
       );
 
       if (pollResult.rows.length === 0) {
@@ -392,13 +449,27 @@ router.put('/polls/:id', authenticateAdmin, async (req, res) => {
                SET name = $1, 
                    party = $2, 
                    photo_url = $3, 
-                   description = $4
-               WHERE id = $5 AND poll_id = $6`,
+                   description = $4,
+                   county_id = $5,
+                   county_name = $6,
+                   sub_county_id = $7,
+                   sub_county_name = $8,
+                   ward_id = $9,
+                   ward_name = $10,
+                   polling_station = $11
+               WHERE id = $12 AND poll_id = $13`,
               [
                 candidate.name,
                 candidate.party,
                 candidate.photoUrl || null,
                 candidate.description || null,
+                candidate.countyId || null,
+                candidate.countyName || null,
+                candidate.subCountyId || null,
+                candidate.subCountyName || null,
+                candidate.wardId || null,
+                candidate.wardName || null,
+                candidate.pollingStation || null,
                 candidate.id,
                 id
               ]
@@ -406,14 +477,24 @@ router.put('/polls/:id', authenticateAdmin, async (req, res) => {
           } else {
             // Insert new candidate
             await client.query(
-              `INSERT INTO candidates (poll_id, name, party, photo_url, description)
-               VALUES ($1, $2, $3, $4, $5)`,
+              `INSERT INTO candidates (
+                poll_id, name, party, photo_url, description,
+                county_id, county_name, sub_county_id, sub_county_name,
+                ward_id, ward_name, polling_station
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
               [
                 id,
                 candidate.name,
                 candidate.party,
                 candidate.photoUrl || null,
-                candidate.description || null
+                candidate.description || null,
+                candidate.countyId || null,
+                candidate.countyName || null,
+                candidate.subCountyId || null,
+                candidate.subCountyName || null,
+                candidate.wardId || null,
+                candidate.wardName || null,
+                candidate.pollingStation || null
               ]
             );
           }
@@ -505,8 +586,12 @@ router.get('/users', authenticateAdmin, async (req, res) => {
         u.email,
         u.national_id,
         u.phone,
-        u.county,
-        u.division,
+        u.county_id,
+        u.county_name,
+        u.sub_county_id,
+        u.sub_county_name,
+        u.ward_id,
+        u.ward_name,
         u.polling_station,
         u.is_email_verified,
         u.is_phone_verified,
@@ -522,8 +607,9 @@ router.get('/users', authenticateAdmin, async (req, res) => {
     if (search) {
       query += ` WHERE u.email ILIKE $1 
                 OR u.national_id ILIKE $1 
-                OR u.county ILIKE $1
-                OR u.division ILIKE $1
+                OR u.county_name ILIKE $1
+                OR u.sub_county_name ILIKE $1
+                OR u.ward_name ILIKE $1
                 OR u.polling_station ILIKE $1`;
       params.push(`%${search}%`);
     }
@@ -535,7 +621,7 @@ router.get('/users', authenticateAdmin, async (req, res) => {
 
     // Get total count for pagination
     const countQuery = search
-      ? `SELECT COUNT(*) as total FROM users WHERE email ILIKE $1 OR national_id ILIKE $1 OR county ILIKE $1 OR division ILIKE $1 OR polling_station ILIKE $1`
+      ? `SELECT COUNT(*) as total FROM users WHERE email ILIKE $1 OR national_id ILIKE $1 OR county_name ILIKE $1 OR sub_county_name ILIKE $1 OR ward_name ILIKE $1 OR polling_station ILIKE $1`
       : `SELECT COUNT(*) as total FROM users`;
 
     const countParams = search ? [`%${search}%`] : [];
@@ -547,8 +633,12 @@ router.get('/users', authenticateAdmin, async (req, res) => {
       email: user.email,
       nationalId: user.national_id,
       phone: user.phone,
-      county: user.county,
-      division: user.division,
+      countyId: user.county_id,
+      countyName: user.county_name,
+      subCountyId: user.sub_county_id,
+      subCountyName: user.sub_county_name,
+      wardId: user.ward_id,
+      wardName: user.ward_name,
       pollingStation: user.polling_station,
       isEmailVerified: user.is_email_verified,
       isPhoneVerified: user.is_phone_verified,
@@ -604,8 +694,12 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
       email: user.email,
       nationalId: user.national_id,
       phone: user.phone,
-      county: user.county,
-      division: user.division,
+      countyId: user.county_id,
+      countyName: user.county_name,
+      subCountyId: user.sub_county_id,
+      subCountyName: user.sub_county_name,
+      wardId: user.ward_id,
+      wardName: user.ward_name,
       pollingStation: user.polling_station,
       isEmailVerified: user.is_email_verified,
       isPhoneVerified: user.is_phone_verified,
@@ -627,8 +721,12 @@ router.put('/users/:id', authenticateAdmin, async (req, res) => {
     const {
       email,
       phone,
-      county,
-      division,
+      countyId,
+      countyName,
+      subCountyId,
+      subCountyName,
+      wardId,
+      wardName,
       pollingStation,
       isEmailVerified,
       isPhoneVerified
@@ -638,15 +736,27 @@ router.put('/users/:id', authenticateAdmin, async (req, res) => {
       `UPDATE users 
        SET email = COALESCE($1, email),
            phone = COALESCE($2, phone),
-           county = COALESCE($3, county),
-           division = COALESCE($4, division),
-           polling_station = COALESCE($5, polling_station),
-           is_email_verified = COALESCE($6, is_email_verified),
-           is_phone_verified = COALESCE($7, is_phone_verified),
+           county_id = COALESCE($3, county_id),
+           county_name = COALESCE($4, county_name),
+           sub_county_id = COALESCE($5, sub_county_id),
+           sub_county_name = COALESCE($6, sub_county_name),
+           ward_id = COALESCE($7, ward_id),
+           ward_name = COALESCE($8, ward_name),
+           polling_station = COALESCE($9, polling_station),
+           is_email_verified = COALESCE($10, is_email_verified),
+           is_phone_verified = COALESCE($11, is_phone_verified),
            updated_at = NOW()
-       WHERE id = $8
+       WHERE id = $12
        RETURNING *`,
-      [email, phone, county, division, pollingStation, isEmailVerified, isPhoneVerified, id]
+      [
+        email, phone, 
+        countyId, countyName, 
+        subCountyId, subCountyName,
+        wardId, wardName,
+        pollingStation, 
+        isEmailVerified, isPhoneVerified, 
+        id
+      ]
     );
 
     if (result.rows.length === 0) {
@@ -659,8 +769,12 @@ router.put('/users/:id', authenticateAdmin, async (req, res) => {
       email: user.email,
       nationalId: user.national_id,
       phone: user.phone,
-      county: user.county,
-      division: user.division,
+      countyId: user.county_id,
+      countyName: user.county_name,
+      subCountyId: user.sub_county_id,
+      subCountyName: user.sub_county_name,
+      wardId: user.ward_id,
+      wardName: user.ward_name,
       pollingStation: user.polling_station,
       isEmailVerified: user.is_email_verified,
       isPhoneVerified: user.is_phone_verified,
@@ -831,11 +945,11 @@ router.get('/analytics', authenticateAdmin, async (req, res) => {
 
     // Location distribution
     const locationDistribution = await db.query(
-      `SELECT county, COUNT(*) as votes, 
+      `SELECT county_name as county, COUNT(*) as votes, 
               COUNT(DISTINCT user_id) as unique_voters
        FROM votes 
-       WHERE county IS NOT NULL ${dateFilter}
-       GROUP BY county
+       WHERE county_name IS NOT NULL ${dateFilter}
+       GROUP BY county_name
        ORDER BY votes DESC`
     );
 
@@ -887,7 +1001,10 @@ router.get('/export/:type', authenticateAdmin, async (req, res) => {
       case 'votes':
         if (pollId) {
           query = `
-            SELECT v.*, u.email, u.county, p.office_name, c.name as candidate_name, c.party
+               SELECT v.*, u.email,
+                 u.county_id, u.county_name, u.sub_county_id, u.sub_county_name,
+                 u.ward_id, u.ward_name, u.polling_station,
+                 p.office_name, c.name as candidate_name, c.party
             FROM votes v
             JOIN users u ON v.user_id = u.id
             JOIN polls p ON v.poll_id = p.id
@@ -898,7 +1015,10 @@ router.get('/export/:type', authenticateAdmin, async (req, res) => {
           filename = `votes-poll-${pollId}-export`;
         } else {
           query = `
-            SELECT v.*, u.email, u.county, p.office_name, c.name as candidate_name, c.party
+                 SELECT v.*, u.email,
+                   u.county_id, u.county_name, u.sub_county_id, u.sub_county_name,
+                   u.ward_id, u.ward_name, u.polling_station,
+                   p.office_name, c.name as candidate_name, c.party
             FROM votes v
             JOIN users u ON v.user_id = u.id
             JOIN polls p ON v.poll_id = p.id
@@ -994,5 +1114,294 @@ router.get('/export/:type', authenticateAdmin, async (req, res) => {
 //     res.status(500).json({ error: 'Internal server error' });
 //   }
 // });
+
+// ========== SURVEY MANAGEMENT ENDPOINTS ==========
+
+// Create a new survey
+router.post('/surveys', authenticateAdmin, async (req, res) => {
+  const client = await db.getClient();
+  
+  try {
+    await client.query('BEGIN');
+
+    const {
+      question,
+      description,
+      startDate,
+      endDate,
+      scope = 'GENERAL',
+      countyId,
+      subCountyId,
+      wardId,
+      options
+    } = req.body;
+
+    // Validation
+    if (!question || !startDate || !endDate) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Question, start date, and end date are required' });
+    }
+
+    if (!options || options.length < 2) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'At least 2 options are required' });
+    }
+
+    // Validate scope-specific requirements
+    if (scope === 'COUNTY' && !countyId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'County ID required for COUNTY scope' });
+    }
+    if (scope === 'SUB_COUNTY' && (!countyId || !subCountyId)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'County and Sub-County IDs required for SUB_COUNTY scope' });
+    }
+    if (scope === 'WARD' && (!countyId || !subCountyId || !wardId)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'County, Sub-County, and Ward IDs required for WARD scope' });
+    }
+
+    // Create survey
+    const surveyResult = await client.query(
+      `INSERT INTO surveys 
+        (question, description, start_date, end_date, is_active, scope, county_id, sub_county_id, ward_id, created_by)
+       VALUES ($1, $2, $3, $4, true, $5, $6, $7, $8, $9)
+       RETURNING id, question, description, start_date AS "startDate", end_date AS "endDate", 
+                 is_active, scope, county_id AS "countyId", sub_county_id AS "subCountyId", 
+                 ward_id AS "wardId", created_at AS "createdAt"`,
+      [question, description, startDate, endDate, scope, countyId || null, subCountyId || null, wardId || null, req.admin.adminId]
+    );
+
+    const survey = surveyResult.rows[0];
+
+    // Create options
+    const optionPromises = options.map((option, index) =>
+      client.query(
+        `INSERT INTO survey_options (survey_id, option_text, display_order)
+         VALUES ($1, $2, $3)
+         RETURNING id, option_text AS "optionText", vote_count AS "voteCount"`,
+        [survey.id, option.optionText, index]
+      )
+    );
+
+    const optionResults = await Promise.all(optionPromises);
+    const createdOptions = optionResults.map(result => result.rows[0]);
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      message: 'Survey created successfully',
+      survey: {
+        ...survey,
+        options: createdOptions
+      }
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error creating survey:', error);
+    res.status(500).json({ error: 'Failed to create survey' });
+  } finally {
+    client.release();
+  }
+});
+
+// Get all surveys (admin view)
+router.get('/surveys', authenticateAdmin, async (req, res) => {
+  try {
+    const { scope, is_active } = req.query;
+
+    let query = `
+      SELECT 
+        s.id,
+        s.question,
+        s.description,
+        s.start_date AS "startDate",
+        s.end_date AS "endDate",
+        s.is_active,
+        s.scope,
+        s.county_id AS "countyId",
+        s.sub_county_id AS "subCountyId",
+        s.ward_id AS "wardId",
+        s.created_at AS "createdAt",
+        COUNT(DISTINCT sv.id) AS "totalVotes"
+      FROM surveys s
+      LEFT JOIN survey_votes sv ON s.id = sv.survey_id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramIndex = 1;
+
+    if (scope) {
+      query += ` AND s.scope = $${paramIndex}`;
+      params.push(scope);
+      paramIndex++;
+    }
+
+    if (is_active !== undefined) {
+      query += ` AND s.is_active = $${paramIndex}`;
+      params.push(is_active === 'true');
+      paramIndex++;
+    }
+
+    query += `
+      GROUP BY s.id
+      ORDER BY s.created_at DESC
+    `;
+
+    const result = await db.query(query, params);
+
+    // Fetch options for each survey
+    const surveysWithOptions = await Promise.all(
+      result.rows.map(async (survey) => {
+        const optionsResult = await db.query(
+          `SELECT 
+            id, 
+            option_text AS "optionText",
+            vote_count AS "voteCount"
+          FROM survey_options 
+          WHERE survey_id = $1 
+          ORDER BY display_order`,
+          [survey.id]
+        );
+
+        return {
+          ...survey,
+          totalVotes: parseInt(survey.totalVotes) || 0,
+          options: optionsResult.rows
+        };
+      })
+    );
+
+    res.json(surveysWithOptions);
+  } catch (error) {
+    console.error('Error fetching surveys:', error);
+    res.status(500).json({ error: 'Failed to fetch surveys' });
+  }
+});
+
+// Update survey
+router.put('/surveys/:id', authenticateAdmin, async (req, res) => {
+  const client = await db.getClient();
+  
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const { question, description, startDate, endDate, scope, countyId, subCountyId, wardId, options } = req.body;
+
+    // Update survey
+    const surveyResult = await client.query(
+      `UPDATE surveys 
+       SET question = COALESCE($1, question),
+           description = COALESCE($2, description),
+           start_date = COALESCE($3, start_date),
+           end_date = COALESCE($4, end_date),
+           scope = COALESCE($5, scope),
+           county_id = COALESCE($6, county_id),
+           sub_county_id = COALESCE($7, sub_county_id),
+           ward_id = COALESCE($8, ward_id)
+       WHERE id = $9
+       RETURNING *`,
+      [question, description, startDate, endDate, scope, countyId, subCountyId, wardId, id]
+    );
+
+    if (surveyResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+
+    // Update options if provided
+    if (options && Array.isArray(options)) {
+      // Delete existing options
+      await client.query('DELETE FROM survey_options WHERE survey_id = $1', [id]);
+
+      // Create new options
+      const optionPromises = options.map((option, index) =>
+        client.query(
+          `INSERT INTO survey_options (survey_id, option_text, display_order)
+           VALUES ($1, $2, $3)
+           RETURNING id, option_text AS "optionText", vote_count AS "voteCount"`,
+          [id, option.optionText, index]
+        )
+      );
+
+      await Promise.all(optionPromises);
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ message: 'Survey updated successfully', surveyId: id });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error updating survey:', error);
+    res.status(500).json({ error: 'Failed to update survey' });
+  } finally {
+    client.release();
+  }
+});
+
+// Toggle survey status
+router.patch('/surveys/:id/toggle', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      `UPDATE surveys 
+       SET is_active = NOT is_active
+       WHERE id = $1
+       RETURNING is_active`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+
+    res.json({
+      message: 'Survey status toggled successfully',
+      is_active: result.rows[0].is_active
+    });
+  } catch (error) {
+    console.error('Error toggling survey status:', error);
+    res.status(500).json({ error: 'Failed to toggle survey status' });
+  }
+});
+
+// Delete survey
+router.delete('/surveys/:id', authenticateAdmin, async (req, res) => {
+  const client = await db.getClient();
+  
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+
+    // Delete votes first
+    await client.query('DELETE FROM survey_votes WHERE survey_id = $1', [id]);
+
+    // Delete options
+    await client.query('DELETE FROM survey_options WHERE survey_id = $1', [id]);
+
+    // Delete survey
+    const result = await client.query('DELETE FROM surveys WHERE id = $1 RETURNING id', [id]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ message: 'Survey deleted successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error deleting survey:', error);
+    res.status(500).json({ error: 'Failed to delete survey' });
+  } finally {
+    client.release();
+  }
+});
 
 export default router;
