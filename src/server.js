@@ -54,15 +54,13 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 };
 
 // Middleware
 app.use(helmet());
 app.use(limiter);
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 app.use(express.json());
 
