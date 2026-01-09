@@ -41,21 +41,29 @@ const apiLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.'
 });
 
-// Middleware
-app.use(helmet());
-app.use(limiter);
-app.use(cors({
+// CORS configuration
+const corsOptions = {
   origin: [
     'http://localhost:5173',
+    'http://localhost:3000',
     'https://poll-eb6r0ipj1-steven-ennis-projects.vercel.app',
     'https://poll-onrvn9mtx-steven-ennis-projects.vercel.app',
     /^https:\/\/poll-.*-steven-ennis-projects\.vercel\.app$/,
     /^https:\/\/.*\.vercel\.app$/
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200
+};
+
+// Middleware
+app.use(helmet());
+app.use(limiter);
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Make io accessible to routes
