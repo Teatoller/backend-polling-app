@@ -945,11 +945,11 @@ router.get('/analytics', authenticateAdmin, async (req, res) => {
 
     // Location distribution
     const locationDistribution = await db.query(
-      `SELECT county, COUNT(*) as votes, 
+      `SELECT county_name as county, COUNT(*) as votes, 
               COUNT(DISTINCT user_id) as unique_voters
        FROM votes 
-       WHERE county IS NOT NULL ${dateFilter}
-       GROUP BY county
+       WHERE county_name IS NOT NULL ${dateFilter}
+       GROUP BY county_name
        ORDER BY votes DESC`
     );
 
