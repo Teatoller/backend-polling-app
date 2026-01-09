@@ -108,7 +108,7 @@ const createTables = async () => {
     console.log('Tables created successfully');
     
     // Create default admin user
-    const adminPassword = await bcrypt.hash('admin123', 12);
+    const adminPassword = await bcrypt.hash('new@admin@123', 12);
     
     await db.query(
       `INSERT INTO admin_users (email, password_hash) 
@@ -117,7 +117,7 @@ const createTables = async () => {
       ['admin@pollingapp.com', adminPassword]
     );
     
-    console.log('Default admin user created: admin@pollingapp.com / admin123');
+    console.log('Default admin user created: admin@pollingapp.com / new@admin@123');
     
   } catch (error) {
     console.error('Error creating tables:', error);
