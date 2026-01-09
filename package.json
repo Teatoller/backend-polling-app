@@ -11,7 +11,11 @@
     "dev": "nodemon src/server.js",
     "build": "echo \"No build step for JS project\"",
     "migrate": "node src/migrations/migrate.js",
-    "drop-tables": "node src/migrations/drop_all_tables.js"
+    "drop-tables": "node src/migrations/drop_all_tables.js",
+    "migrate:surveys": "node src/migrations/create_survey_tables.js",
+    "migrate:poll-scope": "node src/migrations/add_poll_scope_fields.js",
+    "migrate:location-fields": "node src/migrations/update_location_fields.js",
+    "test:location-fields": "node src/migrations/test_location_fields.js"
   },
   "license": "MIT",
   "dependencies": {

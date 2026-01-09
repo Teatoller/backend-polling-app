@@ -1,3 +1,4 @@
+// src/migrations/update_location_fields.js
 // Migration script to update location fields in existing database
 // This script helps transition from old location fields to new ones
 import { db } from '../config/database.js';
