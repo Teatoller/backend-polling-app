@@ -59,16 +59,29 @@ const updateLocationFields = async () => {
       END $$;
     `);
 
-    // Migrate existing data from old fields to new fields for users
+    // Migrate existing data from old fields to new fields for users (only if old columns exist)
     console.log('Migrating existing user data...');
-    await client.query(`
-      UPDATE users 
-      SET 
-        county_name = COALESCE(county, 'Unknown'),
-        sub_county_name = COALESCE(division, 'Unknown'),
-        ward_name = COALESCE(polling_station, 'Unknown')
-      WHERE county_name IS NULL OR sub_county_name IS NULL OR ward_name IS NULL;
+    
+    // Check if old columns exist before migrating
+    const oldColumnsExist = await client.query(`
+      SELECT 
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='county') as has_county,
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='division') as has_division
     `);
+    
+    if (oldColumnsExist.rows[0].has_county || oldColumnsExist.rows[0].has_division) {
+      // Only run migration if old columns exist
+      await client.query(`
+        UPDATE users 
+        SET 
+          county_name = COALESCE(county, county_name, 'Unknown'),
+          sub_county_name = COALESCE(division, sub_county_name, 'Unknown')
+        WHERE county_name IS NULL OR sub_county_name IS NULL;
+      `);
+      console.log('Migrated data from old columns to new columns');
+    } else {
+      console.log('Old columns do not exist, skipping data migration');
+    }
 
     // Add new columns to candidates table if they don't exist
     console.log('Adding new location columns to candidates table...');
@@ -149,31 +162,66 @@ const updateLocationFields = async () => {
       END $$;
     `);
 
-    // Migrate existing data from old fields to new fields for votes
+    // Migrate existing data from old fields to new fields for votes (only if old columns exist)
     console.log('Migrating existing votes data...');
-    await client.query(`
-      UPDATE votes 
-      SET 
-        county_name = COALESCE(county, 'Unknown'),
-        sub_county_name = COALESCE(division, 'Unknown')
-      WHERE county_name IS NULL OR sub_county_name IS NULL;
+    
+    // Check if old columns exist in votes table before migrating
+    const oldVoteColumnsExist = await client.query(`
+      SELECT 
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='votes' AND column_name='county') as has_county,
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='votes' AND column_name='division') as has_division
     `);
+    
+    if (oldVoteColumnsExist.rows[0].has_county || oldVoteColumnsExist.rows[0].has_division) {
+      // Only run migration if old columns exist
+      await client.query(`
+        UPDATE votes 
+        SET 
+          county_name = COALESCE(county, county_name, 'Unknown'),
+          sub_county_name = COALESCE(division, sub_county_name, 'Unknown')
+        WHERE county_name IS NULL OR sub_county_name IS NULL;
+      `);
+      console.log('Migrated votes data from old columns to new columns');
+    } else {
+      console.log('Old columns do not exist in votes table, skipping data migration');
+    }
 
-    // Make the new fields NOT NULL after migration
+    // Make the new fields NOT NULL after migration (only if they have data)
     console.log('Setting constraints on new fields...');
-    await client.query(`
-      ALTER TABLE users 
-        ALTER COLUMN county_name SET NOT NULL,
-        ALTER COLUMN sub_county_name SET NOT NULL,
-        ALTER COLUMN ward_name SET NOT NULL;
+    
+    // Check if users table columns have data before setting NOT NULL
+    const usersHaveData = await client.query(`
+      SELECT COUNT(*) as count FROM users WHERE county_name IS NOT NULL
     `);
+    
+    if (usersHaveData.rows[0].count > 0) {
+      await client.query(`
+        ALTER TABLE users 
+          ALTER COLUMN county_name SET NOT NULL,
+          ALTER COLUMN sub_county_name SET NOT NULL,
+          ALTER COLUMN ward_name SET NOT NULL;
+      `);
+      console.log('Set NOT NULL constraints on users table');
+    } else {
+      console.log('Skipping NOT NULL constraints on users table (no data present)');
+    }
 
-    await client.query(`
-      ALTER TABLE votes 
-        ALTER COLUMN county_name SET NOT NULL,
-        ALTER COLUMN sub_county_name SET NOT NULL,
-        ALTER COLUMN ward_name SET NOT NULL;
+    // Check if votes table columns have data before setting NOT NULL
+    const votesHaveData = await client.query(`
+      SELECT COUNT(*) as count FROM votes WHERE county_name IS NOT NULL
     `);
+    
+    if (votesHaveData.rows[0].count > 0) {
+      await client.query(`
+        ALTER TABLE votes 
+          ALTER COLUMN county_name SET NOT NULL,
+          ALTER COLUMN sub_county_name SET NOT NULL,
+          ALTER COLUMN ward_name SET NOT NULL;
+      `);
+      console.log('Set NOT NULL constraints on votes table');
+    } else {
+      console.log('Skipping NOT NULL constraints on votes table (no data present)');
+    }
 
     // Optional: Drop old columns if you're sure you don't need them
     // Uncomment these lines after verifying the migration works
