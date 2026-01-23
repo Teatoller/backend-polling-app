@@ -15,7 +15,8 @@
     "migrate:surveys": "node src/migrations/create_survey_tables.js",
     "migrate:poll-scope": "node src/migrations/add_poll_scope_fields.js",
     "migrate:location-fields": "node src/migrations/update_location_fields.js",
-    "test:location-fields": "node src/migrations/test_location_fields.js"
+    "test:location-fields": "node src/migrations/test_location_fields.js",
+    "migrate:remove-national-id": "node src/migrations/remove_national_id.js"
   },
   "license": "MIT",
   "dependencies": {

@@ -7,7 +7,6 @@ const createTables = async () => {
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        national_id VARCHAR(20) UNIQUE NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         phone VARCHAR(20),
         password_hash VARCHAR(255) NOT NULL,
@@ -98,7 +97,6 @@ const createTables = async () => {
       );
 
       -- Create indexes for better performance
-      CREATE INDEX IF NOT EXISTS idx_users_national_id ON users(national_id);
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_votes_user_poll ON votes(user_id, poll_id);
       CREATE INDEX IF NOT EXISTS idx_votes_poll_candidate ON votes(poll_id, candidate_id);

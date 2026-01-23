@@ -584,7 +584,6 @@ router.get('/users', authenticateAdmin, async (req, res) => {
       SELECT 
         u.id,
         u.email,
-        u.national_id,
         u.phone,
         u.county_id,
         u.county_name,
@@ -606,7 +605,6 @@ router.get('/users', authenticateAdmin, async (req, res) => {
 
     if (search) {
       query += ` WHERE u.email ILIKE $1 
-                OR u.national_id ILIKE $1 
                 OR u.county_name ILIKE $1
                 OR u.sub_county_name ILIKE $1
                 OR u.ward_name ILIKE $1
@@ -621,7 +619,7 @@ router.get('/users', authenticateAdmin, async (req, res) => {
 
     // Get total count for pagination
     const countQuery = search
-      ? `SELECT COUNT(*) as total FROM users WHERE email ILIKE $1 OR national_id ILIKE $1 OR county_name ILIKE $1 OR sub_county_name ILIKE $1 OR ward_name ILIKE $1 OR polling_station ILIKE $1`
+      ? `SELECT COUNT(*) as total FROM users WHERE email ILIKE $1 OR county_name ILIKE $1 OR sub_county_name ILIKE $1 OR ward_name ILIKE $1 OR polling_station ILIKE $1`
       : `SELECT COUNT(*) as total FROM users`;
 
     const countParams = search ? [`%${search}%`] : [];
@@ -631,7 +629,6 @@ router.get('/users', authenticateAdmin, async (req, res) => {
     const transformedUsers = result.rows.map(user => ({
       id: user.id,
       email: user.email,
-      nationalId: user.national_id,
       phone: user.phone,
       countyId: user.county_id,
       countyName: user.county_name,
@@ -692,7 +689,6 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
     res.json({
       id: user.id,
       email: user.email,
-      nationalId: user.national_id,
       phone: user.phone,
       countyId: user.county_id,
       countyName: user.county_name,
@@ -767,7 +763,6 @@ router.put('/users/:id', authenticateAdmin, async (req, res) => {
     res.json({
       id: user.id,
       email: user.email,
-      nationalId: user.national_id,
       phone: user.phone,
       countyId: user.county_id,
       countyName: user.county_name,

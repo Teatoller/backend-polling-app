@@ -64,7 +64,6 @@ The backend has been updated to work with the new registration form that include
 **New Request Format:**
 ```json
 {
-  "nationalId": "12345678",
   "email": "user@example.com",
   "phone": "+254712345678",
   "password": "securePassword123",
