@@ -3,6 +3,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { authenticateAdmin } from '../middleware/auth.js';
+import { authorizeAdmin, VALID_ROLES } from '../middleware/authorization.js';
 import { db } from '../config/database.js';
 
 const router = express.Router();
@@ -48,8 +49,123 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// ===== Admin Management (RBAC) =====
+// Create a new admin (superadmin only)
+router.post('/admins', authenticateAdmin, authorizeAdmin('manageAdmins'), async (req, res) => {
+  try {
+    const { email, password, role } = req.body;
+    if (!email || !password || !role) {
+      return res.status(400).json({ error: 'Email, password, and role are required' });
+    }
+    if (!VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    const existing = await db.query('SELECT id FROM admin_users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Admin with this email already exists' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const result = await db.query(
+      `INSERT INTO admin_users (email, password_hash, role)
+       VALUES ($1, $2, $3)
+       RETURNING id, email, role, created_at`,
+      [email, passwordHash, role]
+    );
+
+    res.status(201).json({
+      message: 'Admin created successfully',
+      admin: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating admin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// List admins (superadmin only)
+router.get('/admins', authenticateAdmin, authorizeAdmin('manageAdmins'), async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id, email, role, created_at FROM admin_users ORDER BY created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error listing admins:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update admin (role/email/password) - superadmin only
+router.put('/admins/:id', authenticateAdmin, authorizeAdmin('manageAdmins'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, password, role } = req.body;
+
+    if (role && !VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    // Prevent self-demotion deletion via update path (optional checks)
+    // if (req.admin.adminId === Number(id) && role && role !== 'superadmin') {
+    //   return res.status(400).json({ error: 'Cannot change your own role' });
+    // }
+
+    const fields = [];
+    const values = [];
+    let idx = 1;
+    if (email) { fields.push(`email = $${idx++}`); values.push(email); }
+    if (role) { fields.push(`role = $${idx++}`); values.push(role); }
+    if (password) {
+      const passwordHash = await bcrypt.hash(password, 12);
+      fields.push(`password_hash = $${idx++}`);
+      values.push(passwordHash);
+    }
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(id);
+    const result = await db.query(
+      `UPDATE admin_users SET ${fields.join(', ')}, created_at = created_at
+       WHERE id = $${idx}
+       RETURNING id, email, role, created_at`,
+      values
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+    res.json({ message: 'Admin updated successfully', admin: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating admin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete admin (superadmin only)
+router.delete('/admins/:id', authenticateAdmin, authorizeAdmin('manageAdmins'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.admin.adminId === Number(id)) {
+      return res.status(400).json({ error: "You can't delete your own admin account" });
+    }
+    const result = await db.query(
+      `DELETE FROM admin_users WHERE id = $1 RETURNING id, email, role`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+    res.json({ message: 'Admin deleted successfully', admin: result.rows[0] });
+  } catch (error) {
+    console.error('Error deleting admin:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create poll (Admin only)
-router.post('/polls', authenticateAdmin, async (req, res) => {
+router.post('/polls', authenticateAdmin, authorizeAdmin('managePolls'), async (req, res) => {
   try {
     const { officeName, description, startDate, endDate, candidates, scope,
       countyId, countyName, subCountyId, subCountyName, wardId, wardName, pollingStation } = req.body;
@@ -126,7 +242,7 @@ router.post('/polls', authenticateAdmin, async (req, res) => {
 });
 
 // Get all polls with results (Admin only) - ENHANCED VERSION
-router.get('/polls', authenticateAdmin, async (req, res) => {
+router.get('/polls', authenticateAdmin, authorizeAdmin('viewPolls'), async (req, res) => {
   try {
     const { detailed = 'false' } = req.query;
 
@@ -188,7 +304,7 @@ router.get('/polls', authenticateAdmin, async (req, res) => {
 });
 
 // Add this endpoint to your admin.js routes
-router.get('/statistics', authenticateAdmin, async (req, res) => {
+router.get('/statistics', authenticateAdmin, authorizeAdmin('viewAnalytics'), async (req, res) => {
   try {
     // Get total users
     const usersResult = await db.query(
@@ -268,7 +384,7 @@ router.get('/users/recent', authenticateAdmin, async (req, res) => {
 });
 
 // Toggle poll active status
-router.patch('/polls/:id/toggle', authenticateAdmin, async (req, res) => {
+router.patch('/polls/:id/toggle', authenticateAdmin, authorizeAdmin('managePolls'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -575,7 +691,7 @@ router.get('/polls/:id/results', authenticateAdmin, async (req, res) => {
 
 // Get all users for admin dashboard (NEW)
 // Replace the existing /users endpoint with this updated version
-router.get('/users', authenticateAdmin, async (req, res) => {
+router.get('/users', authenticateAdmin, authorizeAdmin('viewUsers'), async (req, res) => {
   try {
     const { page = 1, limit = 50, search = '' } = req.query;
     const offset = (page - 1) * limit;
@@ -661,7 +777,7 @@ router.get('/users', authenticateAdmin, async (req, res) => {
 // Add the other missing user management endpoints after the existing ones:
 
 // Get user by ID
-router.get('/users/:id', authenticateAdmin, async (req, res) => {
+router.get('/users/:id', authenticateAdmin, authorizeAdmin('viewUsers'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -711,7 +827,7 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Update user
-router.put('/users/:id', authenticateAdmin, async (req, res) => {
+router.put('/users/:id', authenticateAdmin, authorizeAdmin('manageUsers'), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -784,7 +900,7 @@ router.put('/users/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Bulk delete users
-router.post('/users/bulk-delete', authenticateAdmin, async (req, res) => {
+router.post('/users/bulk-delete', authenticateAdmin, authorizeAdmin('manageUsers'), async (req, res) => {
   try {
     const { userIds } = req.body;
 
@@ -822,7 +938,7 @@ router.post('/users/bulk-delete', authenticateAdmin, async (req, res) => {
 });
 
 // Delete single user
-router.delete('/users/:id', authenticateAdmin, async (req, res) => {
+router.delete('/users/:id', authenticateAdmin, authorizeAdmin('manageUsers'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -890,7 +1006,7 @@ router.patch('/users/:id/deactivate', authenticateAdmin, async (req, res) => {
 });
 
 // Get analytics data (NEW)
-router.get('/analytics', authenticateAdmin, async (req, res) => {
+router.get('/analytics', authenticateAdmin, authorizeAdmin('viewAnalytics'), async (req, res) => {
   try {
     const { range = '7d', pollId } = req.query;
     let dateFilter = '';
@@ -981,7 +1097,7 @@ router.get('/analytics', authenticateAdmin, async (req, res) => {
 });
 
 // Export data (NEW)
-router.get('/export/:type', authenticateAdmin, async (req, res) => {
+router.get('/export/:type', authenticateAdmin, authorizeAdmin('exportData'), async (req, res) => {
   try {
     const { type } = req.params;
     const { format = 'csv', pollId } = req.query;
@@ -1113,7 +1229,7 @@ router.get('/export/:type', authenticateAdmin, async (req, res) => {
 // ========== SURVEY MANAGEMENT ENDPOINTS ==========
 
 // Create a new survey
-router.post('/surveys', authenticateAdmin, async (req, res) => {
+router.post('/surveys', authenticateAdmin, authorizeAdmin('manageSurveys'), async (req, res) => {
   const client = await db.getClient();
   
   try {
@@ -1277,7 +1393,7 @@ router.get('/surveys', authenticateAdmin, async (req, res) => {
 });
 
 // Update survey
-router.put('/surveys/:id', authenticateAdmin, async (req, res) => {
+router.put('/surveys/:id', authenticateAdmin, authorizeAdmin('manageSurveys'), async (req, res) => {
   const client = await db.getClient();
   
   try {
@@ -1338,7 +1454,7 @@ router.put('/surveys/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Toggle survey status
-router.patch('/surveys/:id/toggle', authenticateAdmin, async (req, res) => {
+router.patch('/surveys/:id/toggle', authenticateAdmin, authorizeAdmin('manageSurveys'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1365,7 +1481,7 @@ router.patch('/surveys/:id/toggle', authenticateAdmin, async (req, res) => {
 });
 
 // Delete survey
-router.delete('/surveys/:id', authenticateAdmin, async (req, res) => {
+router.delete('/surveys/:id', authenticateAdmin, authorizeAdmin('manageSurveys'), async (req, res) => {
   const client = await db.getClient();
   
   try {

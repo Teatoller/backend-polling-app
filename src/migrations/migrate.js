@@ -104,19 +104,29 @@ const createTables = async () => {
     `);
 
     console.log('Tables created successfully');
-    
+
     // Create default admin user
     const adminPassword = await bcrypt.hash('new@admin@123', 12);
-    
+
+    // await db.query(
+    //   `INSERT INTO admin_users (email, password_hash, role) 
+    //    VALUES ($1, $2, $3) 
+    //    ON CONFLICT (email) DO NOTHING`,
+    //   ['admin@pollingapp.com', adminPassword, 'superadmin']
+    // );
+
     await db.query(
-      `INSERT INTO admin_users (email, password_hash) 
-       VALUES ($1, $2) 
-       ON CONFLICT (email) DO NOTHING`,
-      ['admin@pollingapp.com', adminPassword]
+      `INSERT INTO admin_users (email, password_hash, role) 
+   VALUES ($1, $2, $3) 
+   ON CONFLICT (email) 
+   DO UPDATE SET 
+     password_hash = EXCLUDED.password_hash,
+     role = EXCLUDED.role`,
+      ['admin@pollingapp.com', adminPassword, 'superadmin']
     );
-    
-    console.log('Default admin user created: admin@pollingapp.com / new@admin@123');
-    
+
+    console.log('Default superadmin created: admin@pollingapp.com / new@admin@123');
+
   } catch (error) {
     console.error('Error creating tables:', error);
     process.exit(1);

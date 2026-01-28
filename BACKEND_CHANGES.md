@@ -131,6 +131,29 @@ The backend has been updated to work with the new registration form that include
 
 Note: All location fields for candidates are optional.
 
+## Admin RBAC
+
+### Roles
+- `superadmin`: full access; can manage admins and all resources.
+- `admin`: manage polls, users, surveys; view analytics; export data.
+- `editor`: manage polls and surveys; view analytics; read-only for users/polls.
+- `viewer`: read-only for polls, users, analytics.
+
+Roles and capabilities are defined in [src/middleware/authorization.js](src/middleware/authorization.js).
+
+### Admin Management Endpoints
+- `POST /api/admin/admins` (superadmin): create admin `{ email, password, role }`.
+- `GET /api/admin/admins` (superadmin): list admins.
+- `PUT /api/admin/admins/:id` (superadmin): update `email`, `password`, or `role`.
+- `DELETE /api/admin/admins/:id` (superadmin): delete admin (cannot delete self).
+
+### Capability-Protected Endpoints
+- Polls: create/toggle require `managePolls`; list requires `viewPolls`.
+- Users: list/detail require `viewUsers`; update/delete/bulk delete require `manageUsers`.
+- Surveys: create/update/toggle/delete require `manageSurveys`.
+- Analytics/Statistics: require `viewAnalytics`.
+- Export: requires `exportData`.
+
 ## Database Schema
 
 ### Users Table
