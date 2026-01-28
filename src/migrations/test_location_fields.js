@@ -1,3 +1,4 @@
+// src/migrations/test_location_fields.js
 // Test script to verify location field updates
 import { db } from '../config/database.js';
 

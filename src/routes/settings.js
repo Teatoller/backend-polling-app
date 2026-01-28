@@ -17,7 +17,6 @@ const defaultSettings = {
   registration: {
     requireEmailVerification: true,
     requirePhoneVerification: false,
-    requireNationalId: true,
     allowMultipleRegistrations: false,
     registrationDeadline: 0
   },

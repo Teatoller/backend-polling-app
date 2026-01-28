@@ -137,7 +137,6 @@ user.wardName
 **Old:**
 ```json
 {
-  "nationalId": "12345678",
   "email": "user@example.com",
   "password": "password123",
   "county": "Nairobi",
@@ -149,7 +148,6 @@ user.wardName
 **New:**
 ```json
 {
-  "nationalId": "12345678",
   "email": "user@example.com",
   "password": "password123",
   "countyId": 1,
