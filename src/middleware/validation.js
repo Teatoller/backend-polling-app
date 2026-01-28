@@ -3,8 +3,6 @@ import Joi from 'joi';
 
 export const validateRegistration = (req, res, next) => {
   const schema = Joi.object({
-    nationalId: Joi.string().pattern(/^\d{8}$/).required()
-      .messages({ 'string.pattern.base': 'National ID must be 8 digits' }),
     email: Joi.string().email().required(),
     phone: Joi.string().pattern(/^\+?[\d\s-()]+$/).optional(),
     password: Joi.string().min(6).required(),

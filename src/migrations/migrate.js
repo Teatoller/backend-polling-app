@@ -7,7 +7,6 @@ const createTables = async () => {
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        national_id VARCHAR(20) UNIQUE NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         phone VARCHAR(20),
         password_hash VARCHAR(255) NOT NULL,
@@ -98,7 +97,6 @@ const createTables = async () => {
       );
 
       -- Create indexes for better performance
-      CREATE INDEX IF NOT EXISTS idx_users_national_id ON users(national_id);
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_votes_user_poll ON votes(user_id, poll_id);
       CREATE INDEX IF NOT EXISTS idx_votes_poll_candidate ON votes(poll_id, candidate_id);
@@ -106,19 +104,29 @@ const createTables = async () => {
     `);
 
     console.log('Tables created successfully');
-    
+
     // Create default admin user
     const adminPassword = await bcrypt.hash('new@admin@123', 12);
-    
+
+    // await db.query(
+    //   `INSERT INTO admin_users (email, password_hash, role) 
+    //    VALUES ($1, $2, $3) 
+    //    ON CONFLICT (email) DO NOTHING`,
+    //   ['admin@pollingapp.com', adminPassword, 'superadmin']
+    // );
+
     await db.query(
-      `INSERT INTO admin_users (email, password_hash) 
-       VALUES ($1, $2) 
-       ON CONFLICT (email) DO NOTHING`,
-      ['admin@pollingapp.com', adminPassword]
+      `INSERT INTO admin_users (email, password_hash, role) 
+   VALUES ($1, $2, $3) 
+   ON CONFLICT (email) 
+   DO UPDATE SET 
+     password_hash = EXCLUDED.password_hash,
+     role = EXCLUDED.role`,
+      ['admin@pollingapp.com', adminPassword, 'superadmin']
     );
-    
-    console.log('Default admin user created: admin@pollingapp.com / new@admin@123');
-    
+
+    console.log('Default superadmin created: admin@pollingapp.com / new@admin@123');
+
   } catch (error) {
     console.error('Error creating tables:', error);
     process.exit(1);
