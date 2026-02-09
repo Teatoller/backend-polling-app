@@ -48,8 +48,10 @@ const corsOptions = {
     'http://localhost:3000',
     'https://poll-eb6r0ipj1-steven-ennis-projects.vercel.app',
     'https://poll-onrvn9mtx-steven-ennis-projects.vercel.app',
+    'https://polling-app-469-d4e30d1c3612.herokuapp.com',
     /^https:\/\/poll-.*-steven-ennis-projects\.vercel\.app$/,
-    /^https:\/\/.*\.vercel\.app$/
+    /^https:\/\/.*\.vercel\.app$/,
+    /^https:\/\/polling-app-.*\.herokuapp\.com$/
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
