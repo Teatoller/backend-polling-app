@@ -1,4 +1,4 @@
-// backend src/routes/admin.js
+/// backend src/routes/admin.js
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -1402,6 +1402,42 @@ router.put('/surveys/:id', authenticateAdmin, authorizeAdmin('manageSurveys'), a
     const { id } = req.params;
     const { question, description, startDate, endDate, scope, countyId, subCountyId, wardId, options } = req.body;
 
+    const voteResult = await client.query(
+      'SELECT COUNT(*)::int AS count FROM survey_votes WHERE survey_id = $1',
+      [id]
+    );
+
+    if (voteResult.rows[0].count > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Survey cannot be edited after votes have been cast' });
+    }
+
+    if (options !== undefined && (!Array.isArray(options) || options.length < 2)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'At least 2 options are required' });
+    }
+
+    if (options) {
+      const optionTexts = options.map(option => option.optionText?.trim().toLowerCase());
+      if (optionTexts.some(text => !text) || new Set(optionTexts).size !== optionTexts.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Survey options must be non-empty and unique' });
+      }
+    }
+
+    if (scope === 'COUNTY' && !countyId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'County ID required for COUNTY scope' });
+    }
+    if (scope === 'SUB_COUNTY' && (!countyId || !subCountyId)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'County and Sub-County IDs required for SUB_COUNTY scope' });
+    }
+    if (scope === 'WARD' && (!countyId || !subCountyId || !wardId)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'County, Sub-County, and Ward IDs required for WARD scope' });
+    }
+
     // Update survey
     const surveyResult = await client.query(
       `UPDATE surveys 
@@ -1441,9 +1477,24 @@ router.put('/surveys/:id', authenticateAdmin, authorizeAdmin('manageSurveys'), a
       await Promise.all(optionPromises);
     }
 
+    const updatedOptions = await client.query(
+      `SELECT id, option_text AS "optionText", vote_count AS "voteCount"
+       FROM survey_options WHERE survey_id = $1 ORDER BY display_order`,
+      [id]
+    );
+
     await client.query('COMMIT');
 
-    res.json({ message: 'Survey updated successfully', surveyId: id });
+    res.json({
+      ...surveyResult.rows[0],
+      startDate: surveyResult.rows[0].start_date,
+      endDate: surveyResult.rows[0].end_date,
+      countyId: surveyResult.rows[0].county_id,
+      subCountyId: surveyResult.rows[0].sub_county_id,
+      wardId: surveyResult.rows[0].ward_id,
+      options: updatedOptions.rows,
+      totalVotes: 0
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error updating survey:', error);
